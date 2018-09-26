@@ -92,7 +92,7 @@ To add a basic middleware group, add the `$baseMiddlewareGroups` attribute to `a
 protected $baseMiddlewareGroups = ['custom1', custom2'];
 ```
 
-- `$baseMiddlewareGroups` 属性的值需为数组，数组的值为中间件组的名称。
+- The value of the `$baseMiddlewareGroups` property needs to be an array, and the value of the array is the name of the middleware group.
 
 - The default value of the `$baseMiddlewareGroups` property is: `$baseMiddlewareGroups = ['web', 'api'];`.
 
