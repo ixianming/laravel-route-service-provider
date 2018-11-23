@@ -8,7 +8,7 @@ use Closure;
 
 class RouteServiceProvider extends ServiceProvider
 {
-    protected $middlewareGroupsRules;
+    protected $middlewareGroupsRules = array();
 
     protected $isPriorityJson = false;
 
@@ -21,7 +21,7 @@ class RouteServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        if (! $this->app->runningInConsole()) {
+        if (!$this->app->runningInConsole()) {
             $eJsonResponse = (isset($this->eJsonResponse) && is_bool($this->eJsonResponse)) ? $this->eJsonResponse : false;
             if ($eJsonResponse) {
                 $this->setRequestAccept();
@@ -46,13 +46,13 @@ class RouteServiceProvider extends ServiceProvider
     {
         parent::boot();
 
-        if (! $this->app->runningInConsole()) {
+        if (!$this->app->runningInConsole()) {
             $this->app->booted(function () {
                 $currentRoute = $this->app['routes']->match($this->app['request']);
                 $firstMiddleware = empty($currentRoute->getAction('middleware')[0]) ? null : $currentRoute->getAction('middleware')[0];
                 $groups = $this->middlewareGroupsRules();
 
-                if (! empty($firstMiddleware) && ! empty($groups[$firstMiddleware]) && $groups[$firstMiddleware]['eJsonResponse']) {
+                if (!empty($firstMiddleware) && !empty($groups[$firstMiddleware]) && $groups[$firstMiddleware]['eJsonResponse']) {
                     $this->setRequestAccept();
                 } else {
                     if ($this->isPriorityJson) {
@@ -85,7 +85,7 @@ class RouteServiceProvider extends ServiceProvider
         $allDirAndFilePath = glob($basePath);
         foreach ($allDirAndFilePath as $path) {
             if (is_dir($path)) {
-                $allRoutesFilePath = array_merge($allRoutesFilePath, $this->loadRoutesFile($path.'/*'));
+                $allRoutesFilePath = array_merge($allRoutesFilePath, $this->loadRoutesFile($path . '/*'));
             } else {
                 $allRoutesFilePath[] = $path;
             }
@@ -98,7 +98,8 @@ class RouteServiceProvider extends ServiceProvider
      *
      * @return array
      */
-    public function getBaseMiddlewareGroups(){
+    public function getBaseMiddlewareGroups()
+    {
         return (isset($this->baseMiddlewareGroups) && is_array($this->baseMiddlewareGroups)) ? array_merge(array('web', 'api'), $this->baseMiddlewareGroups) : array('web', 'api');
     }
 
@@ -119,7 +120,7 @@ class RouteServiceProvider extends ServiceProvider
                 $writeResult = file_put_contents($path, $newContent, LOCK_EX);
             }
 
-            if (! $this->app->runningInConsole() && ! $canWrite) {
+            if (!$this->app->runningInConsole() && !$canWrite) {
                 throw new \InvalidArgumentException('Laravel\'s `App\Providers\RouteServiceProvider` has booted. Please comments `App\Providers\RouteServiceProvider::class` in the `providers` array of `config/app.php`.');
             }
 
@@ -164,20 +165,20 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function middlewareGroupsRules()
     {
-        if (! is_null($this->middlewareGroupsRules)) {
+        if (!empty($this->middlewareGroupsRules)) {
             return $this->middlewareGroupsRules;
         }
 
         $defaultMiddlewareGroupsRules = $this->defaultMiddlewareGroupsRules();
 
         $customMiddlewareGroupsRules = method_exists($this, 'customMiddlewareGroupsRules') ? $this->customMiddlewareGroupsRules() : array();
-        if (! is_array($customMiddlewareGroupsRules)) {
+        if (!is_array($customMiddlewareGroupsRules)) {
             throw new \InvalidArgumentException('The return value of the method `customMiddlewareGroupsRules` is not an array. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
 
         $middlewareGroupsRules = array();
         foreach ($defaultMiddlewareGroupsRules as $key => $defaultValue) {
-            if (! empty($customMiddlewareGroupsRules[$key])) {
+            if (!empty($customMiddlewareGroupsRules[$key])) {
                 $middlewareGroupsRules[$key] = array_merge($defaultValue, $customMiddlewareGroupsRules[$key]);
             } else {
                 $middlewareGroupsRules[$key] = $defaultValue;
@@ -190,9 +191,9 @@ class RouteServiceProvider extends ServiceProvider
             $this->validate($groupName, $rule);
 
             // Check the uniqueness of routing name prefix.
-            if (! empty($rule['name'])) {
-                if (! empty($checkNamePrefix[$rule['name']])) {
-                    throw new \InvalidArgumentException('Routing name prefix: `'.$rule['name'].'` is repeated in different basic middleware groups. Check the config of `'.$groupName.', '.implode(', ', $checkNamePrefix).'` basic middleware group. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+            if (!empty($rule['name'])) {
+                if (!empty($checkNamePrefix[$rule['name']])) {
+                    throw new \InvalidArgumentException('Routing name prefix: `' . $rule['name'] . '` is repeated in different basic middleware groups. Check the config of `' . $groupName . ', ' . implode(', ', $checkNamePrefix) . '` basic middleware group. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
                 }
                 $checkNamePrefix[$rule['name']] = $groupName;
             }
@@ -211,30 +212,30 @@ class RouteServiceProvider extends ServiceProvider
      * Validates configuration.
      *
      * @param string $groupName
-     * @param array  $rule
+     * @param array $rule
      *
      * @throws \InvalidArgumentException
      */
     protected function validate($groupName, $rule)
     {
-        if (! empty($rule['domain']) && ! is_string($rule['domain'])) {
-            throw new \InvalidArgumentException('The `domain` value of the basic middleware group `'.$groupName.'` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        if (!empty($rule['domain']) && !is_string($rule['domain'])) {
+            throw new \InvalidArgumentException('The `domain` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
 
-        if (! empty($rule['prefix']) && ! is_string($rule['prefix'])) {
-            throw new \InvalidArgumentException('The `prefix` value of the basic middleware group `'.$groupName.'` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        if (!empty($rule['prefix']) && !is_string($rule['prefix'])) {
+            throw new \InvalidArgumentException('The `prefix` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
 
-        if (! empty($rule['name']) && ! is_string($rule['name'])) {
-            throw new \InvalidArgumentException('The `name` value of the basic middleware group `'.$groupName.'` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        if (!empty($rule['name']) && !is_string($rule['name'])) {
+            throw new \InvalidArgumentException('The `name` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
 
-        if (! empty($rule['eJsonResponse']) && ! is_bool($rule['eJsonResponse'])) {
-            throw new \InvalidArgumentException('The `eJsonResponse` value of the basic middleware group `'.$groupName.'` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        if (!empty($rule['eJsonResponse']) && !is_bool($rule['eJsonResponse'])) {
+            throw new \InvalidArgumentException('The `eJsonResponse` value of the basic middleware group `' . $groupName . '` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
 
-        if (! empty($rule['matchRules']) && ! ($rule['matchRules'] instanceof Closure)) {
-            throw new \InvalidArgumentException('The `matchRules` of the basic middleware group `'.$groupName.'` is not a method. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        if (!empty($rule['matchRules']) && !($rule['matchRules'] instanceof Closure)) {
+            throw new \InvalidArgumentException('The `matchRules` of the basic middleware group `' . $groupName . '` is not a method. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
         }
     }
 
@@ -279,21 +280,21 @@ class RouteServiceProvider extends ServiceProvider
     protected function isMatch($middlewareGroup, $routeFilePath)
     {
         $rules = $this->middlewareGroupsRules();
-        if (! empty($rules[$middlewareGroup]['matchRules'])) {
+        if (!empty($rules[$middlewareGroup]['matchRules'])) {
             $match = $rules[$middlewareGroup]['matchRules'](explode(base_path('routes'), $routeFilePath)[1]);
             if (is_bool($match)) {
                 return $match;
             } else {
-                throw new \InvalidArgumentException('The return value of `matchRules` for the basic middleware group `'.$middlewareGroup.'` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+                throw new \InvalidArgumentException('The return value of `matchRules` for the basic middleware group `' . $middlewareGroup . '` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
             }
         } else {
             $tmp = explode('/', $routeFilePath);
-            $routeFileName = strtolower($tmp[count($tmp)-1]);
+            $routeFileName = strtolower($tmp[count($tmp) - 1]);
             $middlewareGroup = strtolower($middlewareGroup);
 
-            return ( ($routeFileName == $middlewareGroup.'.php')
-                  || ends_with($routeFilePath, '_'.$middlewareGroup.'.php')
-                  || starts_with($routeFileName, $middlewareGroup.'_')
+            return (($routeFileName == $middlewareGroup . '.php')
+                || ends_with($routeFilePath, '_' . $middlewareGroup . '.php')
+                || starts_with($routeFileName, $middlewareGroup . '_')
             );
         }
     }
