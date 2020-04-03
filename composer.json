@@ -1,7 +1,19 @@
 {
     "name": "ixianming/laravel-route-service-provider",
-    "description": "Multiple routing files can be created for the basic middleware group, and the matching rules between the routing file and the basic middleware group can be customized. And you can set up `domain`, `prefix` and `name` of each basic middleware group. You can set the response format of the global exception information to Json format, or you can selectively select the response format of the exception information of some basic middleware groups to be Json format. The extension package will check for duplicate URLs and whether there is a named route with the same name. For more details, please read README.MD.",
-    "keywords": ["laravel", "route", "router", "routing", "service provider", "partition routing", "routing management"],
+    "description": "This extension package is based on Laravel's route service provider. This extension package provides richer and more powerful routing management functions. For more details, please read README.MD.",
+    "keywords": [
+        "laravel",
+        "laravel5",
+        "laravel6",
+        "laravel7",
+        "route",
+        "router",
+        "routing",
+        "route service provider",
+        "routing management",
+        "routing file management"
+    ],
+    "homepage": "https://github.com/ixianming/laravel-route-service-provider",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -11,8 +23,8 @@
         }
     ],
     "require": {
-        "php": ">=5.6.4",
-        "illuminate/routing": "~5.3"
+        "php": ">=7.0",
+        "laravel/framework": ">=5.3"
     },
     "autoload": {
         "psr-4": {
@@ -25,7 +37,5 @@
                 "Ixianming\\Routing\\RouteServiceProvider"
             ]
         }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    }
 }

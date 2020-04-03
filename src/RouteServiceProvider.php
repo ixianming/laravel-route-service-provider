@@ -2,334 +2,330 @@
 
 namespace Ixianming\Routing;
 
+use Closure;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Route;
 use App\Providers\RouteServiceProvider as ServiceProvider;
-use Closure;
 
 class RouteServiceProvider extends ServiceProvider
 {
-    protected $middlewareGroupsRules = array();
-
-    protected $isPriorityJson = false;
-
-    protected $rawAccept;
+    /**
+     * An array that stores configuration for the middleware groups.
+     *
+     * @var array
+     */
+    protected $middlewareGroupsConfig = array();
 
     /**
-     * Register the service provider.
+     * Register service.
      *
      * @return void
      */
     public function register()
     {
-        if (!$this->app->runningInConsole()) {
-            $eJsonResponse = (isset($this->eJsonResponse) && is_bool($this->eJsonResponse)) ? $this->eJsonResponse : false;
-            if ($eJsonResponse) {
-                $this->setRequestAccept();
-            } else {
-                $this->isPriorityJson = (isset($this->ePriorityJson) && is_bool($this->ePriorityJson)) ? $this->ePriorityJson : false;
-                if ($this->isPriorityJson) {
-                    $this->rawAccept = $this->app['request']->header('Accept');
-                    $this->setRequestAccept();
-                }
+        if (!$this->routesAreCached()) {
+            // Instantiate the route collector of the extension package.
+            $routeCollection = new RouteCollection();
+
+            // Set whether or not closure routing is allowed. The default value is false.
+            if (isset($this->closureRoute)) {
+                $routeCollection->setCanUseClosureRoute(isset($this->closureRoute) && is_bool($this->closureRoute) ? $this->closureRoute : false);
             }
+
+            // Set whether the route name is unique. The default value is true.
+            if (isset($this->uniqueRouteName)) {
+                $routeCollection->setRouteNameIsUnique(isset($this->uniqueRouteName) && is_bool($this->uniqueRouteName) ? $this->uniqueRouteName : true);
+            }
+
+            // Set whether reuse action is allowed. The default value is true.
+            if (isset($this->allowReuseAction)) {
+                $routeCollection->setActionCanBeReused(isset($this->allowReuseAction) && is_bool($this->allowReuseAction) ? $this->allowReuseAction : true);
+            }
+
+            // Gets all routes that have been loaded.
+            $loadedRoutes = $this->app['router']->getRoutes();
+
+            // Add the loaded routes to the new route collector.
+            foreach ($loadedRoutes as $route) {
+                $routeCollection->add($route);
+            }
+            unset($loadedRoutes);
+
+            // Set the new route collection instance to router.
+            $this->app['router']->setRoutes($routeCollection);
         }
 
         parent::register();
     }
 
     /**
-     * Bootstrap any application services.
+     * Gets the real path of all the routing files.
      *
-     * @return void
-     */
-    public function boot()
-    {
-        parent::boot();
-
-        if (!$this->app->runningInConsole()) {
-            $this->app->booted(function () {
-                $currentRoute = $this->app['routes']->match($this->app['request']);
-                $firstMiddleware = empty($currentRoute->getAction('middleware')[0]) ? null : $currentRoute->getAction('middleware')[0];
-                $groups = $this->middlewareGroupsRules();
-
-                if (!empty($firstMiddleware) && !empty($groups[$firstMiddleware]) && $groups[$firstMiddleware]['eJsonResponse']) {
-                    $this->setRequestAccept();
-                } else {
-                    if ($this->isPriorityJson) {
-                        $this->setRequestAccept($this->rawAccept);
-                    }
-                }
-            });
-        }
-    }
-
-    /**
-     * Reset request accept header.
-     *
-     * @return void
-     */
-    protected function setRequestAccept($accept = 'application/json')
-    {
-        $this->app['request']->headers->set('Accept', $accept);
-    }
-
-    /**
-     * Get all route files real path.
-     *
+     * @param string $routeDir
      * @return array
      */
-    protected function loadRoutesFile($basePath)
+    protected function loadRouteFiles($routeDir)
     {
-        $allRoutesFilePath = array();
+        $routeFilesAbsPath = array();
 
-        $allDirAndFilePath = glob($basePath);
-        foreach ($allDirAndFilePath as $path) {
-            if (is_dir($path)) {
-                $allRoutesFilePath = array_merge($allRoutesFilePath, $this->loadRoutesFile($path . '/*'));
+        $allDirsAndFilesInPath = glob($routeDir);
+        foreach ($allDirsAndFilesInPath as $absPath) {
+            if (is_dir($absPath)) {
+                $routeFilesAbsPath = array_merge($routeFilesAbsPath, $this->loadRouteFiles($absPath . '/*'));
             } else {
-                $allRoutesFilePath[] = $path;
+                if (Str::endsWith(strtolower($absPath), '.php')) {
+                    $routeFilesAbsPath[] = $absPath;
+                }
             }
         }
-        return $allRoutesFilePath;
+
+        return $routeFilesAbsPath;
     }
 
     /**
-     * Get the basic middleware groups.
+     * Get whether the output format of the default exception response is json. The default value is false.
+     *
+     * @return bool
+     */
+    public function defaultExceptionJsonResponse()
+    {
+        return isset($this->defaultExceptionJsonResponse) && is_bool($this->defaultExceptionJsonResponse) ? $this->defaultExceptionJsonResponse : false;
+    }
+
+    /**
+     * Gets the middleware groups that are allowed to match routing files.
      *
      * @return array
      */
-    public function getBaseMiddlewareGroups()
+    public function getAllowMatchRouteMiddlewareGroups()
     {
-        return (isset($this->baseMiddlewareGroups) && is_array($this->baseMiddlewareGroups)) ? array_merge(array('web', 'api'), $this->baseMiddlewareGroups) : array('web', 'api');
+        $allowMatchRouteMiddlewareGroups = array('web', 'api');
+
+        if (isset($this->allowMatchRouteMiddlewareGroups) && is_array($this->allowMatchRouteMiddlewareGroups)) {
+            foreach ($this->allowMatchRouteMiddlewareGroups as $middlewareGroupName) {
+                if (is_string($middlewareGroupName) && !in_array($middlewareGroupName, $allowMatchRouteMiddlewareGroups)) {
+                    $allowMatchRouteMiddlewareGroups[] = $middlewareGroupName;
+                }
+            }
+        }
+
+        return $allowMatchRouteMiddlewareGroups;
     }
 
     /**
      * Define the routes for the application.
      *
      * @return void
+     * @throws \Exception
      */
     public function map()
     {
-        $loadedProviders = $this->app->getLoadedProviders();
+        $loadedProviders = $this->app->getLoadedProviders(); // Gets loaded service providers.
         if (isset($loadedProviders['App\Providers\RouteServiceProvider'])) {
-            $path = config_path('app.php');
-            $canWrite = is_writable($path);
+            // If the Laravel's route service provider `App\Providers\RouteServiceProvider` has been loaded, the Laravel's route service provider will be automatically commented if the file `config/app.php` is writable. Throws an exception if the file `config/app.php` is unwritable and the runtime environment is not the console.
+            $appConfigPath = config_path('app.php');
+            $canWrite = is_writable($appConfigPath);
             if ($canWrite) {
-                $rawContent = file_get_contents($path);
-                $newContent = strtr($rawContent, array('App\Providers\RouteServiceProvider' => '// App\Providers\RouteServiceProvider'));
-                $writeResult = file_put_contents($path, $newContent, LOCK_EX);
+                $originalContent = file_get_contents($appConfigPath);
+                $newContent = strtr($originalContent, array('App\Providers\RouteServiceProvider' => '// App\Providers\RouteServiceProvider'));
+                file_put_contents($appConfigPath, $newContent, LOCK_EX);
             }
 
             if (!$this->app->runningInConsole() && !$canWrite) {
-                throw new \InvalidArgumentException('Laravel\'s `App\Providers\RouteServiceProvider` has booted. Please comments `App\Providers\RouteServiceProvider::class` in the `providers` array of `config/app.php`.');
+                throw new \RuntimeException('Laravel\'s `App\Providers\RouteServiceProvider` has booted. Please comments `App\Providers\RouteServiceProvider::class` in the `providers` array of `config/app.php`.');
             }
 
             return;
         }
 
-        $lastRoutes = Route::getRoutes();
+        // Gets all routing files.
+        $routeFilesPathArr = $this->loadRouteFiles(base_path('routes'));
 
-        $RouteCollection = new RouteCollection();
+        // Gets the middleware groups that are allowed to match routing files and the configuration of these middleware groups.
+        $middlewareGroups = $this->middlewareGroupsConfig();
 
-        Route::setRoutes($RouteCollection);
+        $routeCollection = $this->app['router']->getRoutes();
 
-        foreach ($lastRoutes as $route) {
-            $RouteCollection->add($route);
-        }
+        $fileBelongsTo = array();
 
-        $allRoutesFilePath = $this->loadRoutesFile(base_path('routes'));
+        foreach ($middlewareGroups as $middlewareGroup => $config) {
+            foreach ($routeFilesPathArr as $routeFilePath) {
+                if ($this->isMatch($middlewareGroup, $routeFilePath, $config['matchRule'])) {
+                    $fileAbsPath = explode(base_path(), $routeFilePath)[1] ?? $routeFilePath;
+                    if (isset($fileBelongsTo[$fileAbsPath])) {
+                        throw new \RuntimeException('The `' . $middlewareGroup . '` middleware group is loading routing file `' . $fileAbsPath . '`, but the routing file has been loaded into the `' . $fileBelongsTo[$fileAbsPath] . '` middleware group. Please do not load it repeatedly.');
+                    }
+                    $fileBelongsTo[$fileAbsPath] = $middlewareGroup;
 
-        $middlewareGroups = $this->middlewareGroupsRules();
+                    // Set the routing file path currently loading.
+                    $routeCollection->setCurrentlyLoadingFilePath($fileAbsPath);
 
-        foreach ($allRoutesFilePath as $routeFilePath) {
-            $RouteCollection->setCurrentFilePath($routeFilePath);
-            foreach ($middlewareGroups as $middlewareGroup => $rules) {
-                if ($this->isMatch($middlewareGroup, $routeFilePath)) {
-                    Route::domain($this->middlewareGroupDomain($middlewareGroup))
-                        ->prefix($this->middlewareGroupPrefix($middlewareGroup))
-                        ->name($this->middlewareGroupName($middlewareGroup))
-                        ->middleware($middlewareGroup)
-                        ->namespace($this->namespace)
+                    Route::middleware($middlewareGroup)
+                        ->namespace($config['namespace'])
+                        ->domain($config['domain'])
+                        ->prefix($config['prefix'])
+                        ->name($config['name'])
+                        ->where($config['where'])
                         ->group($routeFilePath);
                 }
             }
         }
 
-        $RouteCollection->setCurrentFilePath(null);
+        unset($fileBelongsTo);
+        $routeCollection->setCurrentlyLoadingFilePathToNull();
     }
 
     /**
-     * Get the match rules of the basic middleware groups.
+     * Verify that the routing file matches the middleware group.
      *
-     * @return array
+     * @param string $middlewareGroup
+     * @param string $routeFilePath
+     * @param Closure|null $matchRule
+     * @return bool
+     * @throws \Exception
      */
-    protected function middlewareGroupsRules()
+    protected function isMatch($middlewareGroup, $routeFilePath, $matchRule = null)
     {
-        if (!empty($this->middlewareGroupsRules)) {
-            return $this->middlewareGroupsRules;
-        }
-
-        $defaultMiddlewareGroupsRules = $this->defaultMiddlewareGroupsRules();
-
-        $customMiddlewareGroupsRules = method_exists($this, 'customMiddlewareGroupsRules') ? $this->customMiddlewareGroupsRules() : array();
-        if (!is_array($customMiddlewareGroupsRules)) {
-            throw new \InvalidArgumentException('The return value of the method `customMiddlewareGroupsRules` is not an array. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-
-        $middlewareGroupsRules = array();
-        foreach ($defaultMiddlewareGroupsRules as $key => $defaultValue) {
-            if (!empty($customMiddlewareGroupsRules[$key])) {
-                $middlewareGroupsRules[$key] = array_merge($defaultValue, $customMiddlewareGroupsRules[$key]);
-            } else {
-                $middlewareGroupsRules[$key] = $defaultValue;
-            }
-        }
-
-        $checkNamePrefix = array();
-
-        foreach ($middlewareGroupsRules as $groupName => $rule) {
-            $this->validate($groupName, $rule);
-
-            // Check the uniqueness of routing name prefix.
-            if (!empty($rule['name'])) {
-                if (!empty($checkNamePrefix[$rule['name']])) {
-                    throw new \InvalidArgumentException('Routing name prefix: `' . $rule['name'] . '` is repeated in different basic middleware groups. Check the config of `' . $groupName . ', ' . implode(', ', $checkNamePrefix) . '` basic middleware group. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-                }
-                $checkNamePrefix[$rule['name']] = $groupName;
-            }
-
-            $this->middlewareGroupsRules[$groupName]['domain'] = $rule['domain'];
-            $this->middlewareGroupsRules[$groupName]['prefix'] = trim($rule['prefix'], '/') ?: '/';
-            $this->middlewareGroupsRules[$groupName]['name'] = $rule['name'];
-            $this->middlewareGroupsRules[$groupName]['eJsonResponse'] = $rule['eJsonResponse'];
-            $this->middlewareGroupsRules[$groupName]['matchRules'] = $rule['matchRules'];
-        }
-
-        return $this->middlewareGroupsRules;
-    }
-
-    /**
-     * Validates configuration.
-     *
-     * @param string $groupName
-     * @param array $rule
-     *
-     * @throws \InvalidArgumentException
-     */
-    protected function validate($groupName, $rule)
-    {
-        if (!empty($rule['domain']) && !is_string($rule['domain'])) {
-            throw new \InvalidArgumentException('The `domain` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-
-        if (!empty($rule['prefix']) && !is_string($rule['prefix'])) {
-            throw new \InvalidArgumentException('The `prefix` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-
-        if (!empty($rule['name']) && !is_string($rule['name'])) {
-            throw new \InvalidArgumentException('The `name` value of the basic middleware group `' . $groupName . '` is not string. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-
-        if (!empty($rule['eJsonResponse']) && !is_bool($rule['eJsonResponse'])) {
-            throw new \InvalidArgumentException('The `eJsonResponse` value of the basic middleware group `' . $groupName . '` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-
-        if (!empty($rule['matchRules']) && !($rule['matchRules'] instanceof Closure)) {
-            throw new \InvalidArgumentException('The `matchRules` of the basic middleware group `' . $groupName . '` is not a method. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-        }
-    }
-
-    /**
-     * Get the default match rules of the basic middleware groups.
-     *
-     * @return array
-     */
-    protected function defaultMiddlewareGroupsRules()
-    {
-        $middlewareGroups = Route::getMiddlewareGroups();
-
-        $baseMiddlewareGroups = $this->getBaseMiddlewareGroups();
-
-        $defaultMiddlewareGroupsRulesArr = array();
-        foreach ($middlewareGroups as $middlewareGroup => $value) {
-            if (in_array($middlewareGroup, $baseMiddlewareGroups)) {
-                $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['domain'] = null;
-                $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['prefix'] = '';
-                $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['name'] = null;
-                $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['eJsonResponse'] = false;
-                $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['matchRules'] = null;
-
-                if ($middlewareGroup !== 'web') {
-                    $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['prefix'] = $middlewareGroup;
-                }
-
-                if ($middlewareGroup === 'api') {
-                    $defaultMiddlewareGroupsRulesArr[$middlewareGroup]['eJsonResponse'] = true;
-                }
-            }
-        }
-
-        return $defaultMiddlewareGroupsRulesArr;
-    }
-
-    /**
-     * Determine whether the route file match the basic middleware group
-     *
-     * @return boolean
-     */
-    protected function isMatch($middlewareGroup, $routeFilePath)
-    {
-        $rules = $this->middlewareGroupsRules();
-        if (!empty($rules[$middlewareGroup]['matchRules'])) {
-            $match = $rules[$middlewareGroup]['matchRules'](explode(base_path('routes'), $routeFilePath)[1]);
-            if (is_bool($match)) {
-                return $match;
-            } else {
-                throw new \InvalidArgumentException('The return value of `matchRules` for the basic middleware group `' . $middlewareGroup . '` is not Boolean. Read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
-            }
-        } else {
+        if (empty($matchRule)) {
             $tmp = explode('/', $routeFilePath);
             $routeFileName = strtolower($tmp[count($tmp) - 1]);
             $middlewareGroup = strtolower($middlewareGroup);
 
-            return (($routeFileName == $middlewareGroup . '.php')
-                || ends_with($routeFilePath, '_' . $middlewareGroup . '.php')
-                || starts_with($routeFileName, $middlewareGroup . '_')
+            return (
+                $routeFileName == $middlewareGroup . '.php'
+                || Str::endsWith($routeFileName, '_' . $middlewareGroup . '.php')
+                || Str::startsWith($routeFileName, $middlewareGroup . '_')
             );
+        } else {
+            $routeFilePath = explode(base_path('routes'), $routeFilePath)[1] ?? $routeFilePath;
+            $matchResult = $matchRule($routeFilePath);
+            if (is_bool($matchResult)) {
+                return $matchResult;
+            } else {
+                throw new \InvalidArgumentException('The return value of the custom configuration item `matchRule` of the `' . $middlewareGroup . '` middleware group is not a boolean. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+            }
         }
     }
 
     /**
-     * Get domain of the specified basic middleware group.
+     * Gets the default configuration of the middleware groups that are allowed to match routing files.
      *
-     * @return string | null
+     * @return array
      */
-    protected function middlewareGroupDomain($middlewareGroup)
+    public function defaultConfigs()
     {
-        $rules = $this->middlewareGroupsRules();
-        return empty($rules[$middlewareGroup]['domain']) ? null : $rules[$middlewareGroup]['domain'];
+        // Get all middleware groups.
+        $middlewareGroups = $this->app['Illuminate\Contracts\Http\Kernel']->getMiddlewareGroups();
+
+        // Get the middleware groups that are allowed to match routing files.
+        $allowMatchRouteMiddlewareGroups = $this->getAllowMatchRouteMiddlewareGroups();
+
+        $defaultConfigs = array();
+        foreach ($middlewareGroups as $middlewareGroup => $middlewares) {
+            // If this middleware group is allowed to match routing files, set a default config for it.
+            if (in_array($middlewareGroup, $allowMatchRouteMiddlewareGroups)) {
+                $defaultConfigs[$middlewareGroup]['namespace'] = $this->namespace ?? null;
+                $defaultConfigs[$middlewareGroup]['domain'] = null;
+                $defaultConfigs[$middlewareGroup]['prefix'] = $middlewareGroup === 'web' ? '' : $middlewareGroup;
+                $defaultConfigs[$middlewareGroup]['name'] = '';
+                $defaultConfigs[$middlewareGroup]['where'] = array();
+                $defaultConfigs[$middlewareGroup]['eJsonResponse'] = $middlewareGroup === 'api' ? true : $this->defaultExceptionJsonResponse();
+                $defaultConfigs[$middlewareGroup]['matchRule'] = null;
+            }
+        }
+
+        return $defaultConfigs;
     }
 
     /**
-     * Get prefix of the specified basic middleware group.
+     * Check the correctness of the configuration.
      *
-     * @return string
+     * @param string $middlewareGroup
+     * @param array $config
+     * @return void
+     * @throws \Exception
      */
-    protected function middlewareGroupPrefix($middlewareGroup)
+    protected function checkConfig($middlewareGroup, $config)
     {
-        $rules = $this->middlewareGroupsRules();
-        return $rules[$middlewareGroup]['prefix'];
+        $item = '';
+        $valueType = 'a string';
+        $error = true;
+
+        if ($config['namespace'] !== null && !is_string($config['namespace'])) {
+            $item = 'namespace';
+        } elseif ($config['domain'] !== null && !is_string($config['domain'])) {
+            $item = 'domain';
+        } elseif ($config['prefix'] !== null && !is_string($config['prefix'])) {
+            $item = 'prefix';
+        } elseif ($config['name'] !== null && !is_string($config['name'])) {
+            $item = 'name';
+        } elseif ($config['where'] !== null && !is_array($config['where'])) {
+            $item = 'where';
+            $valueType = 'an array';
+        } elseif ($config['eJsonResponse'] !== null && !is_bool($config['eJsonResponse'])) {
+            $item = 'eJsonResponse';
+            $valueType = 'a boolean';
+        } elseif ($config['matchRule'] !== null && !($config['matchRule'] instanceof Closure)) {
+            $item = 'matchRule';
+            $valueType = 'a closure';
+        } else {
+            $error = false;
+        }
+
+        if ($error) {
+            $exceptionMsg = 'The value of the configuration item `' . $item . '` of the middleware group `' . $middlewareGroup . '` is not ' . $valueType . '. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.';
+            throw new \InvalidArgumentException($exceptionMsg);
+        }
     }
 
     /**
-     * Get name of the specified basic middleware group.
+     * Gets the configuration of the middleware groups that are allowed to match routing files.
      *
-     * @return string | null
+     * @return array
+     * @throws \Exception
      */
-    protected function middlewareGroupName($middlewareGroup)
+    public function middlewareGroupsConfig()
     {
-        $rules = $this->middlewareGroupsRules();
-        return empty($rules[$middlewareGroup]['name']) ? null : $rules[$middlewareGroup]['name'];
+        if (!empty($this->middlewareGroupsConfig)) {
+            return $this->middlewareGroupsConfig;
+        }
+
+        // Gets the default configuration of all middleware groups that are allowed to match routing files.
+        $defaultConfigs = $this->defaultConfigs();
+
+        // Gets custom configuration.
+        $customMiddlewareGroupsConfig = method_exists($this, 'customMiddlewareGroupsConfig') ? $this->customMiddlewareGroupsConfig() : array();
+        if (!is_array($customMiddlewareGroupsConfig)) {
+            throw new \InvalidArgumentException('The return value of the method `customMiddlewareGroupsConfig` is not an array. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+        }
+
+        $middlewareGroupsConfig = array();
+        foreach ($defaultConfigs as $middlewareGroup => $defaultConfig) {
+            if (!empty($customMiddlewareGroupsConfig[$middlewareGroup])) {
+                if (!is_array($customMiddlewareGroupsConfig[$middlewareGroup])) {
+                    throw new \InvalidArgumentException('The custom configuration value of the `' . $middlewareGroup . '` middleware group is not an array. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+                }
+
+                $middlewareGroupsConfig[$middlewareGroup] = array_merge($defaultConfig, $customMiddlewareGroupsConfig[$middlewareGroup]);
+            } else {
+                $middlewareGroupsConfig[$middlewareGroup] = $defaultConfig;
+            }
+        }
+
+        foreach ($middlewareGroupsConfig as $middlewareGroup => $config) {
+            // Check the correctness of the configuration of the middleware group.
+            $this->checkConfig($middlewareGroup, $config);
+
+            $this->middlewareGroupsConfig[$middlewareGroup]['namespace'] = empty($config['namespace']) ? null : $config['namespace'];
+            $this->middlewareGroupsConfig[$middlewareGroup]['domain'] = empty($config['domain']) ? null : $config['domain'];
+            $this->middlewareGroupsConfig[$middlewareGroup]['prefix'] = empty($config['prefix']) ? '' : $config['prefix'];
+            $this->middlewareGroupsConfig[$middlewareGroup]['name'] = empty($config['name']) ? '' : $config['name'];
+            $this->middlewareGroupsConfig[$middlewareGroup]['where'] = empty($config['where']) ? array() : $config['where'];
+            $this->middlewareGroupsConfig[$middlewareGroup]['eJsonResponse'] = $config['eJsonResponse'] ?? $this->defaultExceptionJsonResponse();
+            $this->middlewareGroupsConfig[$middlewareGroup]['matchRule'] = $config['matchRule'];
+        }
+
+        return $this->middlewareGroupsConfig;
     }
 
 }

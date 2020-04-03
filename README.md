@@ -1,14 +1,138 @@
 # Laravel RouteServiceProvider
 
+The documentation details the functionality of the extension package, which is more informative, but not more complex.
+
+Usually, the default configuration can meet most of the needs, so you don't need to set it after installing the extension package. You just need to be familiar with the default rules to use it.
+
 - [中文文档](/README-zh.md)
 
-## Install
+[TOC]
 
-### Installation conditions：
+## About the extension package
+
+The extension package's `ServiceProvider` inherits Laravel's `App\Providers\RouteServiceProvider`. therefore, after installing the extension package, the explicit bindings, filters, custom parsing logic, etc. of the routing model defined in the boot() method in `App\Providers\RouteServiceProvider` are still available.
+
+However, it should be noted that the changes to `map()`, `mapApiRoutes()`, and `mapWebRoutes()` in `App\Providers\RouteServiceProvider` are invalid, because the extension overwrites the `map()` method and the `map()` method no longer references `mapApiRoutes()`, `mapWebRoutes()`.
+
+## Features
+
+- You can set middleware groups that are allowed to match routing files.
+
+    > The extension package use default or custom rules to assign routing files to these middleware groups and perform loading.
+
+- You can create multiple routing files for the same middleware group, and you can place these routing files anywhere in the `routes` directory.
+
+    > The name of the routing file can use the default rules, or the developer can customize the matching rules between the routing file and the middleware group.
+
+- You can set the response format of the exception information to the global default Json output, or you can independently set the response format of the exception information to Json for each middleware group that allows the matching routing file. (Independent settings have higher priority than global default settings)
+
+- Check for duplicate URLs (complete URLs with domain restrictions) in all routes.
+
+- You can set whether to allow registration of closure-based routes.
+
+- You can set whether the names of named routes can be duplicated.
+
+- You can set whether the controller is allowed to be reused.
+
+- You can customize the root namespace `namespace` used by each middleware group that is allowed to match routing files.
+
+- You can customize the subdomain `domain` used by each middleware group that is allowed to match routing files.
+
+- You can customize the route prefix `prefix` used by each middleware group that is allowed to match routing files.
+
+- You can customize the route name prefix `name` used by each middleware group that is allowed to match routing files.
+
+- You can customize the route parameter regular expression constraint `where` used by each middleware group that is allowed to match routing files.
+
+## Impact on performance
+
+Installing and using any expansion package will inevitably bring additional performance overhead. Using this expansion package is also the case.
+
+**The additional performance overhead is reasonable and negligible.** However, if there are extreme requirements for the application performance, please test by yourself before use.
+
+When testing, be sure to confirm the following points:
+
+- Make sure the only variable is whether the extension package is installed or not.
+
+- **Make sure that the number of routing files and routes loaded by the app are the same before and after installing the extension package.**
+
+### Use route cache
+
+After installing the extension package, use the `php artisan route:cache` command to generate the route cache in any environment, comparison of using route cache after installation and using route cache before installation:
+
+- Increased memory consumption (The values are measured in PHP 7.3 environment and are for reference only.):
+
+    - Laravel 7:
+    
+        In theory, using the route cache only increases the memory consumption (about 55 KB) when loading the extension package service provider. However, in actual tests, the new memory consumption will increase with the number of routes. When the number of routes exceeds about 230, the new memory consumption will fluctuate significantly:
+
+        - When the number of routes is less than about 230, the memory consumption is increased by about (about 55 + (about 0.04 * number of routes)) KB compared to the time before installing the expansion package.
+
+        - When the number of routes is about 230-300, the memory consumption is increased by about (about 55 + (about 0.2 * number of routes)) KB compared to before the expansion package is installed.
+
+        - When the number of routes exceeds about 300, the memory consumption is increased by about (about 55 + (about 0.3 * number of routes)) KB compared to before the expansion package was installed.
+    
+    - Laravel 5.* / Laravel 6:
+    
+        - When the number of routes is less than about 300, the memory consumption is increased by about (about 100 + (about 0.6 * the number of routes)) KB compared to before the expansion package is installed.
+        
+        - When the number of routes exceeds about 300, the memory consumption will increase by about (about 100 + (about 0.9 * number of routes)) KB compared to that before the expansion package is installed.
+    
+    The test also found that without using this extension package, after using the route cache, the number of Laravel 7 routes exceeds about 230, and the number of Laravel 5.* / Laravel 6 routes exceeding about 300, memory consumption will also occur Significant fluctuations:
+
+    - When no extension package is installed, route cache is used, and the number of routes is less than about 230 (Laravel 7) / about 300 (Laravel 5.* / Laravel 6), the memory footprint of each route is about 4.5 KB.
+
+    - When no extension package is installed, route cache is used, and the number of routes exceeds about 230 (Laravel 7) / 300 (Laravel 5.* / Laravel 6), the memory footprint of each route is about 9 KB.
+
+    In my opinion, the reason for the above memory differences is related to the underlying implementation of PHP7 arrays (automatic expansion mechanism). For the specific underlying implementation of PHP7 arrays, please find the information yourself. If you have different opinions on this, welcome to exchange and learn together.
+
+    Overall, even if your application is a large application with nearly a thousand routes, the added memory consumption is only about 300 KB, which is almost negligible.
+
+- Increased I/O overhead:
+
+    - Laravel 7:
+    
+        - For a normal response, add an IO read (about 15 KB).
+        
+        - In the case of an exception, add two IO reads (about 20 KB in total).
+
+    - Laravel 5.* / Laravel 6:
+
+        - For a normal response, add two IO reads (about 30 KB in total).
+    
+        - In the case of an exception, add three IO reads (about 35 KB in total).
+        
+Other performance overhead is the same as before the extension package was installed.
+
+### No route cache
+
+Without route cache, the extra performance overhead is mainly the memory overhead of `RouteServiceProvider`, `RouteCollection` and `Route` instances, and the matching operation overhead of the route file and the middleware group.
+
+comparison of after installation and before installation:
+
+- Increases negligible CPU computation overhead.
+
+- Memory consumption has increased by about (about 110 + about 1.5 * number of routes)) KB compared to before the installation of the extension. (This value was measured in a PHP 7.3 environment and is for reference only.)
+
+- Increased I/O overhead:
+
+    - For a normal response, add two IO reads (about 30 KB in total).
+    
+    - In the case of an exception, add three IO reads (about 35 KB in total).
+
+Other performance overhead is the same as before the extension package was installed.
+
+## Installation
+
+### Installation conditions
+
+- PHP >= 7.0
 
 - Laravel >= 5.3
 
-### Install：
+    > Laravel 6 / Laravel 7 can also be installed and used!
+
+### Installation
 
 ```shell
 composer require ixianming/laravel-route-service-provider
@@ -16,17 +140,17 @@ composer require ixianming/laravel-route-service-provider
 
 #### Use Package Auto-Discovery
 
-- Laravel 5.5+ uses Package Auto-Discovery, so doesn't require you to manually add the ServiceProvider.
+- Laravel 5.5+ uses package Auto-Discovery, so doesn't require you to manually add the `ServiceProvider`.
 
-- You don't need to comment on Laravel's routing service provider (unless the extension package throws a prompt).
+- You don't need to comment on Laravel's route service provider (unless the extension package throws a prompt).
 
 #### Don't Use Package Auto-Discovery
 
 If the Laravel version is less than 5.5 or don't use package auto-discovery:
 
-- Add the extension's service provider `Ixianming\Routing\RouteServiceProvider::class` to the `providers` array in `config/app.php`.
+- Comment Laravel's route service provider `App\Providers\RouteServiceProvider::class` in the `providers` array in `config/app.php`.
 
-- Comment Laravel's routing service provider `App\Providers\RouteServiceProvider::class` in the `providers` array in `config/app.php`.
+- Add the extension's service provider `Ixianming\Routing\RouteServiceProvider::class` to the `providers` array in `config/app.php`.
 
 ```php
 'providers' => [
@@ -39,97 +163,207 @@ If the Laravel version is less than 5.5 or don't use package auto-discovery:
  ]
 ```
 
-> Note：
->
-> After uninstalling the extension package, remember to remove `Ixianming\Routing\RouteServiceProvider::class` from the `providers` array in `config/app.php` and uncomment the `App\Providers\RouteServiceProvider::class`.
+### Manually add function to handle the output format of exception information
 
-
-## About The Package
-
-The extension package's `RouteServiceProvider` extends Laravel's `App\Providers\RouteServiceProvider`. Therefore, after installing the extension package, you can still explicitly bind, filter, customize the parsing logic, etc. of the routing model defined in the `boot()` method in `App\Providers\RouteServiceProvider`. However, it should be noted that the modification of the three methods `map()`, `mapApiRoutes()`, `mapWebRoutes()` in `App\Providers\RouteServiceProvider` is invalid because the extension wraps the `map ()` method, and the `mapApiRoutes()`, `mapWebRoutes()` methods are no longer referenced in the `map()` method.
-
-### Expansion pack function
-
-- The extension package gets the set of basic middleware group and then automatically assigns the corresponding routing file to each basic middleware group and performs the load using default rules or custom rules.
-
-- Multiple routing files can be created for the same basic middleware group and can be placed anywhere in the `routes` directory. Developers can use the default matching rules or customize the matching rules between individual basic middleware groups and routing files.
-
-- You can set the global exception information response format to Json format, or you can independently set the response format of the exception information of each basic middleware group to Json format.
-
-- You can customize the `domain` used by the basic middleware group.
-
-- You can customize the `prefix` used by the basic middleware group.
-
-- You can customize the routing name prefix for the basic middleware group.
-
-- Automatically check for duplicate URLs in all routes (A duplicate URL is the full URL that contains the domain name), and if they do, an error message will be thrown. The extension packages also indicate the routing file address of the duplicate URL, or the basic middleware group to which the duplicate URL belongs, to facilitate rapid positioning of the problem.
-
-- Automatically check all routings for named routes with the same name. If they exist, an error message will be thrown. The extension packages also indicate the routing file address of the duplicate named routes, or the basic middleware group to which the duplicate named routes belongs, to facilitate rapid positioning of the problem.
-
-> Reminder: The expansion pack don't check if the controller is reused. So, same as before installing this extension, if you reuse the controller, the URL of the controller generated using the `action()` method might not be the URL you want.
-
-### About basic middleware group
-
-Whether you read this section don't affect the use of the expansion pack.
-
-The basic middleware group has default values, so you can use it after installing the expansion pack, no configuration is required.
-
-To learn more, please continue reading this section.
-
-The middleware group is defined in the `$middlewareGroups` property of `app/HTTP/Kernel.php`. Laravel comes with two middleware groups `web` and `api`, which developers can add or modify as needed. Middleware groups make it more convenient to assign many middleware to a route at once
-
-The basic middleware group is a concept of this extension package: a middleware group that allows automatic matching of routing files is called a basic middleware group.
-
-So the only purpose of defining a basic middleware group is to automatically match the routing file to the specified middleware group, rather than automatically matching the routing files to all middleware groups in general.
-
-For example, the developer defines a middleware group for the convenience of reference, rather than matching the routing files like the `web` and `api` middleware groups. At this time, you need to define the basic middleware group to tell the extension package which middleware groups need to automatically match the routing file.
-
-The extension package defaults to the `web` and `api` middleware groups as the basic middleware group.
-
-To add a basic middleware group, add the `$baseMiddlewareGroups` attribute to `app/Providers/RouteServiceProvider.php`:
+Add the code before the `return` of the `render` method of the `App\Exceptions\Handler` class:
 
 ```php
-protected $baseMiddlewareGroups = ['custom1', custom2'];
+if (method_exists(\Ixianming\Routing\ExceptionResponse::class, 'wantsJson')) {
+    list($request, $exception) = \Ixianming\Routing\ExceptionResponse::wantsJson($request, $exception);
+}
 ```
 
-- The value of the `$baseMiddlewareGroups` property needs to be an array, and the value of the array is the name of the middleware group.
+After modification, the `render` method should look like this:
 
-- The default value of the `$baseMiddlewareGroups` property is: `$baseMiddlewareGroups = ['web', 'api'];`.
-
-- The value of the defined `$baseMiddlewareGroups` property will eventually be merged with the default value, so just define the new basic middleware group in the `$baseMiddlewareGroups` property.
+```php
+public function render($request, Exception $exception)
+{
+    // Your code ...
     
-- When the value of the `$baseMiddlewareGroups` property is not empty, if the value is of the wrong type, the default value will be used.
+    // Your code must precede this function.
+    if (method_exists(\Ixianming\Routing\ExceptionResponse::class, 'wantsJson')) {
+        list($request, $exception) = \Ixianming\Routing\ExceptionResponse::wantsJson($request, $exception);
+    }
+    // There should be no code between the function and `return`.
+    return parent::render($request, $exception);
+}
+```
 
-#### FAQs
+### Notes for uninstall
 
-- `web`, `api`, `custom1`, `custom2` are middleware groups, `web`, `api`, `custom1` are basic middleware groups. Can I reference the `custom1` middleware group in the route under the `web` basic middleware group?
+- After uninstalling the extension package, remember to remove the code that handles the output format of the exception response added to the `render` method of the `App\Exceptions\Handler` class.
 
-    can. The basic middleware group is essentially a middleware group, so it is no problem to reference the `custom1` middleware group in the route under the `web` basic middleware group, even if the referenced middleware group is defined as the basic middleware group.
-    
-    The sole role of the basic middleware group is to automatically match the corresponding routing file to this middleware group.
-    
-    In this example, you may be curious as to how to match the routing file. Both `web` and `custom1` are basic middleware groups, so the extension package will match the routes for the `web` and `custom1` middleware groups respectively. Although the route under the `web` basic middleware group references the `custom1` middleware group, these routes belong to the `web` middleware group.
+- After uninstalling the extension package, remember to remove the code of the attributes and methods used by the extension package added in `App\Providers\RouteServiceProvider`.
 
-### Default route matching rule
+- After uninstalling the extension package, remember to remove `Ixianming\Routing\RouteServiceProvider::class` in the `providers` array in `config/app.php` and uncomment the `App\Providers\RouteServiceProvider::class`.
 
-After the expansion pack is installed, the corresponding routing file is automatically matched for each basic middleware group. These routing files can be placed anywhere in the `routes` directory.
+## Use
 
-Default route matching rule：
+### Set the middleware groups that are allowed to match routing files
 
-A routing file named with `{basic middleware group name}.php`, or the file name begins with `{basic middleware group name}_`, or the file name ends with `_{basic middleware group name}.php`. The routing file will be assigned to the basic middleware group of the corresponding name.
+**The extension package default `web` and `api` middleware groups can match routing files.**
 
-> Note：Not case sensitive.
+To add middleware groups that are allowed to match routing files, add the `$allowMatchRouteMiddlewareGroups` attribute to `app/Providers/RouteServiceProvider.php`:
 
-E.g：
+```php
+protected $allowMatchRouteMiddlewareGroups = ['middlewareGroup_1', 'middlewareGroup_2'];
+```
+
+- The value of the `$allowMatchRouteMiddlewareGroups` attribute is a one-dimensional array. The value of the array is the name of the middleware group that is allowed to match routing file.
+
+- The value of the `$allowMatchRouteMiddlewareGroups` attribute is merged with the default value, so you only need to define new middleware groups that are allowed to match routing files in the `$allowMatchRouteMiddlewareGroups` attribute.
+
+- When the value type of the `$allowMatchRouteMiddlewareGroups` attribute is wrong, the default value will be used.
+
+### Set whether the global default exception response format is Json
+
+**Before using this function, manually add a function to handle the output format of exception information in the `render` method of `App\Exceptions\Handler` class, otherwise this function is invalid.**
+
+To set the global default exception information response format to Json format, add the `$defaultExceptionJsonResponse` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+
+```php
+protected $defaultExceptionJsonResponse = true;
+```
+
+- The value of the `$defaultExceptionJsonResponse` attribute must be a **boolean value (`true` or `false`)**.
+
+- The `$defaultExceptionJsonResponse` attribute **default value is `false`**.
+
+- When the value type of the `$defaultExceptionJsonResponse` attribute is wrong, the default value will be used.
+
+- When the value of the `$defaultExceptionJsonResponse` attribute is `true`, the response format of the exception information thrown by the application is Json **when accessing an unknown route or a route under a middleware group that does not customize the exception information response format**.
+
+- When the value of the `$defaultExceptionJsonResponse` attribute does not exist or the value is `null` or the value is `false`, **when accessing an unknown route or a route under a middleware group that does not customize the exception information response format**, the response of the exception information thrown by the application, the response format is **determined by the `Accept` parameter of the request header**.
+
+- **When accessing the route under the middleware group with the customized exception information response format**, no matter how the value of the `$defaultExceptionJsonResponse` attribute is set, the response format of the exception information thrown by the application is determined by the customized setting of the middleware group. (see the following for details of custom rules)
+
+### Set whether to allow registration of closure-based route
+
+**By default, extension package are forbidden to register and use closure-based route.**
+
+> Why prohibit registration and use of closure-based route:
+> 
+> - When an application is published, Laravel is usually optimized, and route cache is one of the optimization items. But route cache does not apply to closure-based route. If you use closure-based route, you will get an error when generating the cache! To prevent route cache from being unavailable when the code is released, the best solution is to always disable closure routing.
+>
+> - During team development, this configuration can forcibly restrict the way developers can register routes and reduce the risk of mistakes.
+
+To allow registration and use of closure-based route, add the `$closureRoute` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+
+```php
+protected $closureRoute = true;
+```
+
+- The value of the `$closureRoute` attribute must be a **boolean value (`true` or `false`)**.
+
+- The `$closureRoute` attribute **default value is `false`**.
+
+- When the value type of the `$closureRoute` attribute is wrong, the default value will be used.
+
+- When the value of `$closureRoute` is `true`, it means that registration is allowed to use closure-based route.
+
+- When the value of `$closureRoute` is `false`, it means that registration and use of closure-based route is prohibited.
+
+### Set whether the name of the named route allows duplicate names
+
+**Name requirements for named routes are unique by default.**
+
+**Note: The name of a named route should not end with `.` (English period). In laravel, ending with `.` will be considered as a route name prefix, not a full name.**
+
+Why the name of named routes need to be unique:
+
+- In some scenarios where named routes are used to control permissions or generate URLs, named routes with the same name can cause business confusion.
+
+- In some scenarios where the route name is required to be unique, the developer may not even realize that the route name is repeated when defining the route without double-checking.
+
+- If the name of the named route allows duplicates. Then the URL of the named route generated using the `route()` method may not be the URL you want.
+
+To allow duplicate names for named routes, add the `$uniqueRouteName` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+
+```php
+protected $uniqueRouteName = false;
+```
+
+- The value of the `$uniqueRouteName` attribute must be a **boolean value (`true` or `false`)**.
+
+- The value of the `$uniqueRouteName` attribute **default value is `false`**.
+
+- When the value type of the `$uniqueRouteName` attribute is wrong, the default value will be used.
+
+- When the value of the `$uniqueRouteName` attribute is `true`, it means that the name of the named route must be unique.
+
+- When the value of the `$uniqueRouteName` attribute is `false`, it means that the named route name is allowed to be duplicated.
+
+After banning named routes with the same name, if there are named routes with the same name in all routes, an error message will be thrown. The extension package also indicates the route file path and line where the named route with the same name is located, as well as the middleware group to which it belongs, in order to quickly locate the problem.
+
+### Set whether the controller can be reused
+
+**Controllers are allowed to be reused by default.**
+
+Why prohibit controller reuse:
+
+- Normally, a controller method corresponds to a business logic. The use of the same controller for multiple routes means that this service can be accessed through multiple URLs, which is unfriendly to the management and maintenance of URLs, and can easily cause leaks in some URL-based applications for permission management.
+
+- If reuse of the controller is allowed. Then the URL of the controller generated using the `action()` method may not be the URL you want.
+
+If you need to prevent controller reuse, add the `$allowReuseAction` property to `app/Providers/RouteServiceProvider.php` and set its value to `false`:
+
+```php
+protected $allowReuseAction = false;
+```
+
+- The value of the `$allowReuseAction` attribute must be a **boolean value (`true` or `false`)**.
+
+- When the `$allowReuseAction` attribute **default value is `true`**.
+
+- When the value type of the `$allowReuseAction` attribute is wrong, the default value will be used.
+
+- When the value of the `$allowReuseAction` attribute is `true`, the controller is allowed to be reused.
+
+- When the value of the `$allowReuseAction` property is `false`, it means that the reuse of the controller is prohibited.
+
+After the controller is prohibited from being reused, it will be checked in all routes whether the controller is reused. If it is reused, an error message will be thrown. The extension package also indicates the route file path and line where the route of the reused controller is located, as well as the middleware group to which it belongs, in order to quickly locate the problem.
+
+### Check for duplicate definition URLs
+
+**This feature is mandatory and does not provide a switch option.**
+
+In Laravel, if you define the same URL, the later routes will overwrite the existing ones. Duplicate definitions are not what we expect, because it makes routing messy, difficult to maintain, and difficult to manage.
+
+After installing the extension package, the extension package will check for duplicate URLs in all routes. If it exists, an exception message will be thrown. The extension package will also indicate the routing file path and line where the duplicate URL is located, as well as the middleware group to which it is located, in order to quickly locate the problem.
+
+> URL refers to the full URL with domain name restrictions.
+
+### Default rules
+
+#### Default routing file matching rules
+
+After installing the extension package, the corresponding routing file is automatically matched for each middleware group that is allowed to match the routing file. These routing files can be placed anywhere in the `routes` directory.
+
+**Default matching rules:**
+
+- Name it `{middlewareGroupName}.php`.
+
+- Start with `{middlewareGroupName}_`.
+
+- End with `_{middlewareGroupName}.php`.
+
+Route files names that meet the above rules will be assigned to the middleware group with corresponding names.
+
+**Note: Each route file in the `routes` directory can only be loaded once.**
+
+**Note: In the default rules, the path or file name is not case sensitive.**
+
+For example:
 
 ```php
 routes
    |-- web.php
    |-- api.php
+   |-- web_errorTest_api.php
    |-- channels.php
    |-- console.php
-   |-- welcome_web.php
-   |-- welcome_api.php
+   |-- welcome_web.PHP
+   |-- welcome_api.PHP
    |-- web_User.php
    |-- api_User.php
    |-- Role
@@ -137,204 +371,218 @@ routes
         |-- role_API.php
 ```
 
-- `web.php`, `welcome_web.php`, `web_User.php`, `Role/role_WEB.php` These routing files will be assigned the `web` middleware group.
+- `web.php`, `welcome_web.PHP`, `web_User.php`, `Role/role_WEB.php` these routing files will be assigned to the `web` middleware group.
 
-- `api.php`、`welcome_api.php`、`api_User.php`、`Role/role_API.php` These routing files will be assigned the `api` middleware group.
+- `api.php`, `welcome_api.PHP`, `api_User.php`, `Role/role_API.php` these routing files will be assigned to the `api` middleware group.
 
-### Default route prefix
+- When loading the `web_errorTest_api.php` routing file, the extension package will throw an error because the file is assigned to both the `web` and `api` middleware groups (loaded 2 times). Developers should be aware of this when naming routing files with default rules.
 
-- The `prefix` of the `web` basic middleware group is empty by default.
+#### The root namespace used by default
 
-- The `prefix` of other basic middleware groups uses the name of the basic middleware group by default.
+The root namespace used by all middleware groups that are allowed to match routing files defaults to the value of the attribute `$namespace` in `App\Providers\RouteServiceProvider`. Normally, this value is `App\Http\Controllers`.
 
-E.g：
+#### The subdomain used by default
 
-By default, the `prefix` of the `web` basic middleware group is empty; the `prefix` of the `api` basic middleware group uses the name `api` of the basic middleware group. And so on.
+The subdomain name used by all middleware groups that are allowed to match routing files are empty by default.
 
-### Default route name prefix
+#### The routing prefix used by default
 
-The `name` of all basic middleware groups is empty by default, that is, the route name prefix is not set.
+- The `prefix` for the `web` middleware group is empty by default.
 
-### `domain` used by default
+- The `prefix` for other middleware groups that are allowed to match routing files uses the name of the middleware group by default.
 
-The `domain` of all basic middleware groups is empty by default, which is the subdomain that does not restrict access.
+E.g:
 
-### The response format of the default exception information
+By default, the `prefix` of the `web` middleware group is empty; the `prefix` of the `api` middleware group uses the name `api` of the middleware group. And so on.
 
-- The response format of the exception information for the `api` basic middleware group defaults to Json.
+#### The route name prefix used by default
 
-- The response format of the exception information of other basic middleware groups is the same as before the expansion package is installed.
+The route name prefix `name` used by all middleware groups that are allowed to match routing files are empty by default.
 
-### Set the response format of the exception information to Json format
+#### Regular expression constraints for routing parameters used by default
 
-We all know that when Laravel throws an exception, it displays the Whoops page. The page content is good, but it is not so friendly for API applications.
+The routing parameter regular expression constraints `where` used by all middleware groups that are allowed to match routing files are empty by default.
 
-In most cases, we want the API application to respond to Json data instead of a page when it encounters an exception.
+#### Default exception message response format
 
-After installing the extension package, you can set the response format of the global exception information to Json format, or you can set it separately for each basic middleware group.
+**Before using this function, manually add a function to handle the output format of exception information in the `render` method of `App\Exceptions\Handler` class, otherwise this function is invalid.**
 
-#### Set the global exception information response format to Json format
+- **The response format of exception messages of the `api` middleware group is Json by default.**
 
-Add the `$eJsonResponse` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+- The exception message response format of other middleware groups that are allowed to match the routing file is **determined by the global default exception message response format setting**.
 
-```php
-protected $eJsonResponse = true;
-```
+### Custom rules
 
-- The value of the `$eJsonResponse` property needs to be a Boolean value (`true` or `false`).
+**Custom rules will override the default rules, and uncustomized ones will continue to use the default rules.**
 
-- The value of the `$eJsonResponse` property defaults to `false`.
-    
-- When the value of the `$eJsonResponse` attribute is not empty, if the value is of the wrong type, the default value will be used.
+**Tip: when setting custom rules, if there is an error in setting, an exception will be thrown, and the response format of the exception information will be determined by the default rule.**
 
-- When the value of the `$eJsonResponse` attribute is `true`, the response format of the exception information is Json format regardless of which route is accessed under the basic middleware group.
+Custom rules are only valid for middleware groups that are allowed to match routing files. If a middleware group is not allowed to match routing files, even the rules are not useful.
 
-- If the `$eJsonResponse` attribute does not exist or the value of the `$eJsonResponse` attribute is `false`, the response format of the current exception information is determined according to the setting of the exception information response format of the basic middleware group to which the current route belongs.
-
-    For example, the value of the `$eJsonResponse` attribute is `false`, and the setting of the exception information response format of the basic middleware group uses the default value. Then, when accessing the `web` route, the response format of the exception information is the same as before the extension package is installed. When the `api` route is accessed, the response format of the exception information is Json.
-
-> Note:
-> 
-> The global exception information response format is set when the service provider of the extension package is registered. That is, if the application throws an exception before registering the service provider of the extension package,the response format of the exception information is consistent  same as  before installing the expansion pack.
-
-#### Independently set the basic middleware group to respond to Json format
-
-Sometimes you may encounter a situation where you have both a web page and an api interface in your Laravel app. In general, we want the web page to respond to the Whoops page when it encounters an exception. The api interface responds to Json data when it encounters an exception, rather than responding to the Whoops page or Json data in general.
-
-Now, after the expansion pack is installed, you can implement this feature.
-
-How to set the exception information response to Json format for each basic middleware group, see the Custom Rules section.
-
-> Note:
->
-> The exception information response format of the basic middleware group is set after all service providers have booted. That is to say, no matter whether the response format of the exception information set for the currently accessed route is Json, if the application throws an exception during the service provider registration and startup phase, the response format of the exception information will be the same as before the installation of the extension package.
-
-If you want to respond to the service provider registration, the exception information thrown in the startup phase is Json format, The extension package provides an option to prioritize exception information to Json format. After turning this option on, If an exception is thrown after the service provider of the extension package is registered and before all service providers start up, the response format for the exception information will be in Json format. After all the service providers have started, the exception response formats of the basic middleware groups are used.
-
-To set the priority response exception information to Json format, add the `$ePriorityJson` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+To set custom rules, add the method to `app/Providers/RouteServiceProvider.php`:
 
 ```php
-protected $ePriorityJson = true;
-```
-
-- The value of the `$ePriorityJson` attribute needs to be a Boolean value (`true` or `false`).
-
-- The value of the `$ePriorityJson` attribute defaults to `false`.
-    
-- When the value of the `$ePriorityJson` attribute is not empty, if the value is of the wrong type, the default value will be used.
-
-- When the value of the `$ePriorityJson` attribute is `true`. If an exception is thrown before all service providers start up after the service provider of the extended package is registered, the response format for the exception information will be in Json format. After all service providers are started, the exception information response format settings for each of the basic middleware groups are used.
-
-> Note:
->
-> Global settings are prioritized for independent settings. That is, after the Json response with global exception information is set, the independent settings of the basic middleware group and the option value of the priority response to Json are invalid until the Json response with global exception information is cancelled.
-
-### Custom Rules
-
-Custom rules override the default rules, and uncustomized sections will continue to use the default rules.
-
-To set a custom rule, add a method to `app/Providers/RouteServiceProvider.php`:
-
-```php
-protected function customMiddlewareGroupsRules(){
-    $customRules = array(
-        '{baseMiddlewareGroupName}' => array(
+protected function customMiddlewareGroupsConfig()
+{
+    return array(
+        '{middlewareGroupName}' => array(
+            'namespace' => '',
             'domain' => '',
             'prefix' => '',
             'name' => '',
+            'where' => [],
             'eJsonResponse' => false,
-            'matchRules' => function($routeFilePath){
-                // your code
-                // The boolean value must be returned
+            'matchRule' => function ($fileRelativePath) {
+                // your code ...
+                // The return value must be a boolean.
+                return false;
             }
         )
-      
+
         // ...
     );
-
-    return $customRules;
 }
 ```
-    
-In the `$customRules` two-dimensional array, the one-dimensional key `{baseMiddlewareGroupName}` is the name of the basic middleware group that needs to customize the rules.
 
-The value of `{baseMiddlewareGroupName}` is also an array, and its configurable keys are `domain`, `prefix`, `name`, `eJsonResponse`, `matchRules`. You can configure `domain` for the middleware group, `prefix` for the middleware group, the routing name prefix for the middleware group, The response format of the exception information of the basic middleware group, and the matching rules for the middleware group and the routing file.
+The method return a two-dimensional array. The one-dimensional key `{middlewareGroupName}` is the name of the middleware group that needs to be customized.
 
-- To customize the `domain` of the middleware group, set the `domain` key-value pair under the array of the middleware group.
+The value of `{middlewareGroupName}` is also an array. The configurable keys are `namespace`, `domain`, `prefix`, `name`, `where`, `eJsonResponse`, and `matchRule`.
 
-    - The value of `domain` needs to be a string.
-    
-    - When the value of `domain` is not empty, an exception will be thrown if the value of the value is incorrect.
+#### Customize root namespace used by middleware group
 
-- To customize the `prefix` of the basic middleware group, set the `prefix` key-value pair under the array of the basic middleware group.
+**Reminder: If the middleware group customizes the root namespace and does not have the same value as the property `$namespace` in `App\Providers\RouteServiceProvider`. Then, when using methods such as `action()`, `redirectToAction()`, etc., where the incoming parameter is a controller string, the controller string with the full namespace starting with `\` should be passed when the incoming parameter belongs to the controller under that middleware group.**
 
-    - The value of `prefix` needs to be a string.
-    
-    - When the value of `prefix` is not empty, an exception will be thrown if the value of the value is incorrect.
-    
-- To customize the routing name prefix for the basic middleware group, set the `name` key-value pair under the array of the basic middleware group.
+**Recommendation: Regardless of whether the root namespace is customizable or not, the controller string with the full namespace starting with `\` should be passed when using methods with the controller string as an incoming parameter such as `action()`, `redirectToAction()`.**
 
-    - The value of `name` needs to be a string.
-    
-    - The value of `name` is unique among all basic middleware groups.
+> e.g.
+> 
+> The `Welcome@index` controller belongs to the `web` middleware group and uses the default root namespace `App\Http\Controllers`.
+>
+> Before customizing the root namespace of the `web` middleware group, when using the `action()` method, you can call: `action('Welcome@index');` or `action('\App\Http\Controllers\Welcome@index');`.
+>
+> After customizing the root namespace, you need to call: `action('\Custom\App\Http\Controllers\Welcome@index');`.
 
-    - When the value of `name` is not empty, an exception will be thrown if the value of the value is incorrect or the value of `name` is not unique.
+If you need to customize the root namespace used by the middleware group, set the `namespace` key-value pair under the configuration array of the middleware group.
 
-- To set the exception information response format of the basic middleware group to Json format, set the `eJsonResponse` key-value pair under the array of the basic middleware group.
+- The value of `namespace` must be a **string or `null`**.
 
-    - The value of `eJsonResponse` needs to be a Boolean value (`true` or `false`).
+- If the value type of the `namespace` is wrong, an exception will be thrown.
 
-    - When the value of `eJsonResponse` is `true`, the response format of the exception information of the route under the basic middleware group is Json format.
+Since the root namespace has a default value (`App\Http\Controllers`), if you do not need to customize the root namespace of the middleware group, please do not set this item's key-value pair under the configuration array of the middleware group, otherwise the default value will be overwritten.
 
-    - When the value of `eJsonResponse` is not empty, if the value is of the wrong type, an exception will be thrown.
-    
-- To customize the matching rules for basic middleware groups and routing files, set the `matchRules` key-value pair under the array of the basic middleware group.
+#### Customize subdomains used by middleware group
 
-    - The value of `matchRules` is an anonymous function.
-    
-    - The anonymous function passes the path of a routing file. This path is relative to the `routes` directory (Case sensitive). The developer needs to code to determine whether the routing file matches the basic middleware group and then return a Boolean value.
-    
-        > Note: The path/filename of the default rule is case-insensitive, and the path/filename passed to the anonymous function is case sensitive.
-    
-    - When the value of `matchRules` is not empty, an exception will be thrown if the value is not an anonymous function or if the return value of the anonymous function is not a Boolean value.
+To customize the subdomain restrictions used by the middleware group, set the `domain` key-value pair under the configuration array of that middleware group.
 
-#### FAQs about custom rules
+- The value of `domain` must be a **string or `null`**.
 
-- Is the `domain` configured in the basic middleware group, can you also create subdomain routing in the matching routing file? Which domain name is used for subdomain routing?
+- If the value type of the `domain` is wrong, an exception will be thrown.
 
-    You can create a subdomain routing. The `domain` of the basic middleware group configuration can be understood as the default domain name for accessing this basic middleware group. If a subdomain routing group is created in the routing file, the route in the subdomain routing group will be accessed through the newly configured `domain`. Routes not included in the subdomain routing group continue to use the original configured `domain`.
-    
-- The name of the named route is determined to be unique, but why does the extension package still prompt the named route name to be duplicated?
+If you do not need to customize the subdomain restrictions of the middleware group, do not set the key-value pairs for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
 
-    If you confirm that the name of the named route is unique in all routing files, you must have used a custom matching rule, and you must match the same routing file to multiple basic middleware groups. If you've read the code of the Laravel routing service provider, you'll see that the routes you define are actually included in the routing group of the middleware group. When you assign the same route to multiple middleware groups, actually Multiple final routes are generated, but these routes all use the same name, so the named route name is repeated.
-    
-    If you need to match the same routing file to multiple basic middleware groups, you can set a different routing name prefix for the basic middleware group, or delete the `name` attribute of the route in the routing file.
+#### Customize routing prefixe used by middleware group
 
-### Repeated route check
+To customize the routing prefix used by the middleware group, set the `prefix` key-value pair under the configuration array of that middleware group.
 
-In Laravel, if you define the same URL or a named route with the same name, the last defined route will overwrite the existing route. Duplicate definitions are not what we expect because they can make routing confusing and difficult to maintain management.
+- The value of `prefix` must be a **string or `null`**.
 
-The extension will automatically check for duplicate URLs or named routes of the same name in all routes, and if so, will throw an error message. (A duplicate URL is the full URL that contains the domain name)
+- If the value type of the `prefix` is wrong, an exception will be thrown.
 
-### Route cache
+If you do not need to customize the routing prefix of the middleware group, do not set the key-value pairs for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
 
-When the app is published to the build environment, don't forget to generate a route cache in the production environment!
+#### Customize route name prefix used by middleware group
 
-input the command：
+To customize the route name prefix used by the middleware group, set the `name` key-value pair under the configuration array of that middleware group.
+
+- The value of `name` must be a **string or `null`**.
+
+- If the value type of the `name` is wrong, an exception will be thrown.
+
+If you do not need to customize the route name prefix of the middleware group, do not set the key-value pair for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
+
+#### Customize regular expression constraints for routing parameters used by middleware group
+
+To customize the routing parameter regular expression constraint used by the middleware group, set the `where` key value pair under the configuration array of that middleware group.
+
+- The value of `where` must be an **array or `null`**.
+
+- If the value type of the `where` is wrong, an exception will be thrown.
+
+- How to properly set regular expression constraints for routing parameters, see [Laravel Doc - Routing - Regular Expression Constraints](https://laravel.com/docs/7.x/routing#parameters-regular-expression-constraints).
+
+If you do not need to customize the routing parameter regular expression constraint of the middleware group, do not set the key-value pairs for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
+
+#### Customize whether the exception message response format of the middleware group is Json
+
+**Before using this function, manually add a function to handle the output format of exception information in the `render` method of `App\Exceptions\Handler` class, otherwise this function is invalid.**
+
+If you need to customize whether the exception message response format of the middleware group is Json, please set the `eJsonResponse` key-value pair under the configuration array of the middleware group.
+
+- The value of `eJsonResponse` must be a **boolean value (`true` or `false`)**.
+
+- If the value type of the `eJsonResponse` is wrong, an exception will be thrown.
+
+- When the `eJsonResponse` configuration item does not exist or has a value of `null`, the response format of the exception message is determined by the default rule and the global default setting `$defaultExceptionJsonResponse`.
+
+- When the value of `eJsonResponse` is `true`, **when accessing a route under that middleware group**, the response to the exception message thrown is in Json format.
+
+- When the value of `eJsonResponse` is `false`, the response format of the exception message is **determined by the `Accept` parameter of the request header when accessing a route under this middleware group**.
+
+If you do not need to customize the exception message response format of the middleware group, do not set the key-value pairs for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
+
+#### Custom routing file matching rules for middleware groups
+
+If you need to customize the routing file matching rules used by the middleware group, please set the `matchRule` key-value pair under the configuration array of the middleware group.
+
+**Note: Each routing file is only allowed to be loaded once.**
+
+- The value of `matchRule` is a **closure**.
+
+- The path of a routing file will be passed into the closure. This path is relative to the `routes` directory. The developer needs to encode the matching rules of the routing file path and the middleware group. If the routing file path meets the matching conditions, the closure needs return `true`, otherwise it return `false`.
+
+    **Note: The path passed to the closure is case sensitive.**
+
+    ```php
+    //e.g.
+    //Custom matching rules for web middleware groups
+    'web' => array(
+        'matchRule' => function ($fileRelativePath) {
+            $fileRelativePath = strtolower($fileRelativePath); //Turn lowercase
+            if (Str::endsWith($fileRelativePath, '_web.php')) {
+                  //If the routing file ends in `_web.php`, it is assigned to the web middleware group
+                  return true;
+            } else {
+                  return false;
+            }
+        }
+    )
+    ```
+
+- **The return value of the closure must be a boolean (`true` or `false`).**
+
+- An exception is thrown when the value of `matchRule` is not a closure or if the return value of a closure is not a boolean value.
+
+If you do not need to customize the routing file matching rules of the middleware group, do not set the key-value pair for this item under the configuration array of the middleware group, otherwise the default value will be overwritten.
+
+### Generate route cache
+
+When the application is released to the production environment, don't forget to generate the route cache in the production environment!
+
+input the command:
 
 ```shell
 php artisan route:cache
 ```
 
-This command will generate the `bootstrap/cache/routes.php` route cache file.
+This command generates the route cache file in the `bootstrap/cache` directory.
 
-It should be noted that the route cache does not act on closure-based routes. To use route caching, all closure routes must be converted to controller classes.
+Note that route cache does not apply to closure-based route. To use route cache, all closure routes must be converted to controller classes.
 
-If a closure route is used, an error will be reported when the cache is generated!
+If closure route is used, an error will be reported when generating the cache!
 
-If you add any new routes, you must generate a new route cache!
+In addition, if you add any new routes, you must generate a new route cache!
 
-If you want to remove the cached routing file, you can use the command:
+If you want to remove the cache route file, you can use the command:
 
 ```shell
 php artisan route:clear
