@@ -1,6 +1,6 @@
 {
     "name": "ixianming/laravel-route-service-provider",
-    "description": "This extension package is based on Laravel's route service provider. This extension package provides richer and more powerful routing management functions. For more details, please read README.MD.",
+    "description": "Laravel's route management extension, supports Laravel 5.3 and above, Laravel 6 and Laravel 7. Based on Laravel's route service provider, provides more convenient and powerful routing management services, please read README.MD for more details.",
     "keywords": [
         "laravel",
         "laravel5",
@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": ">=7.0",
-        "laravel/framework": ">=5.3"
+        "laravel/framework": "^5.3|^6.0|^7.0"
     },
     "autoload": {
         "psr-4": {
