@@ -53,6 +53,46 @@ class RouteServiceProvider extends ServiceProvider
 
             // Set the new route collection instance to router.
             $this->app['router']->setRoutes($routeCollection);
+
+            // zh-cn：由于某些扩展包（如：`laravel/ui`）会注册并使用路由的自定义宏，且要求在路由文件中添加方法来调用这些自定宏。如果本扩展包的服务提供者的 boot 顺序先于其他服务提供者，那么，本扩展包的服务提供者在 boot 阶段加载路由文件时，其他服务提供者的路由自定义宏可能尚未注册，在路由文件中调用自定宏就将抛出异常。因此，应当在所有服务提供者 boot 完成后再尽快加载路由文件。（事实上，Laravel 本身也是这样做的，路由加载服务几乎是最后启动的。Laravel 服务提供者的 boot 顺序为：框架的服务提供者 -> 扩展包服务提供者 -> APP的服务提供者（含路由加载服务））
+            // en: Since some extension packages (e.g. `laravel/ui`) register and use custom macros of routing and add methods to call these custom macros in the routing file. If the `boot` order of the service provider of this expansion package comes before the other service providers, then when the service provider of this expansion package loads the routing file during the `boot` phase, the routing custom macro of the other service provider may not be registered yet and calling the custom macro in the routing file will throw an exception. Therefore, the routing file should be loaded as soon as possible after all service provider boot is complete. (In fact, Laravel itself does this, and the route loading service is almost last to boot. the Laravel service provider boot order is: service providers of the framework -> service providers of extension package -> service providers of the APP (with route loading service))
+            $this->app->booted(function () {
+                // Gets all routing files.
+                $routeFilesPathArr = $this->loadRouteFiles(base_path('routes'));
+
+                // Gets the middleware groups that are allowed to match routing files and the configuration of these middleware groups.
+                $middlewareGroups = $this->middlewareGroupsConfig();
+
+                $routeCollection = $this->app['router']->getRoutes();
+
+                $fileBelongsTo = array();
+
+                foreach ($middlewareGroups as $middlewareGroup => $config) {
+                    foreach ($routeFilesPathArr as $routeFilePath) {
+                        if ($this->isMatch($middlewareGroup, $routeFilePath, $config['matchRule'])) {
+                            $fileAbsPath = explode(base_path(), $routeFilePath)[1] ?? $routeFilePath;
+                            if (isset($fileBelongsTo[$fileAbsPath])) {
+                                throw new \RuntimeException('The `' . $middlewareGroup . '` middleware group is loading routing file `' . $fileAbsPath . '`, but the routing file has been loaded into the `' . $fileBelongsTo[$fileAbsPath] . '` middleware group. Please do not load it repeatedly.');
+                            }
+                            $fileBelongsTo[$fileAbsPath] = $middlewareGroup;
+
+                            // Set the routing file path currently loading.
+                            $routeCollection->setCurrentlyLoadingFilePath($fileAbsPath);
+
+                            Route::middleware($middlewareGroup)
+                                ->namespace($config['namespace'])
+                                ->domain($config['domain'])
+                                ->prefix($config['prefix'])
+                                ->name($config['name'])
+                                ->where($config['where'])
+                                ->group($routeFilePath);
+                        }
+                    }
+                }
+
+                unset($fileBelongsTo);
+                $routeCollection->setCurrentlyLoadingFilePathToNull();
+            });
         }
 
         parent::register();
@@ -121,6 +161,7 @@ class RouteServiceProvider extends ServiceProvider
     public function map()
     {
         $loadedProviders = $this->app->getLoadedProviders(); // Gets loaded service providers.
+
         if (isset($loadedProviders['App\Providers\RouteServiceProvider'])) {
             // If the Laravel's route service provider `App\Providers\RouteServiceProvider` has been loaded, the Laravel's route service provider will be automatically commented if the file `config/app.php` is writable. Throws an exception if the file `config/app.php` is unwritable and the runtime environment is not the console.
             $appConfigPath = config_path('app.php');
@@ -137,42 +178,6 @@ class RouteServiceProvider extends ServiceProvider
 
             return;
         }
-
-        // Gets all routing files.
-        $routeFilesPathArr = $this->loadRouteFiles(base_path('routes'));
-
-        // Gets the middleware groups that are allowed to match routing files and the configuration of these middleware groups.
-        $middlewareGroups = $this->middlewareGroupsConfig();
-
-        $routeCollection = $this->app['router']->getRoutes();
-
-        $fileBelongsTo = array();
-
-        foreach ($middlewareGroups as $middlewareGroup => $config) {
-            foreach ($routeFilesPathArr as $routeFilePath) {
-                if ($this->isMatch($middlewareGroup, $routeFilePath, $config['matchRule'])) {
-                    $fileAbsPath = explode(base_path(), $routeFilePath)[1] ?? $routeFilePath;
-                    if (isset($fileBelongsTo[$fileAbsPath])) {
-                        throw new \RuntimeException('The `' . $middlewareGroup . '` middleware group is loading routing file `' . $fileAbsPath . '`, but the routing file has been loaded into the `' . $fileBelongsTo[$fileAbsPath] . '` middleware group. Please do not load it repeatedly.');
-                    }
-                    $fileBelongsTo[$fileAbsPath] = $middlewareGroup;
-
-                    // Set the routing file path currently loading.
-                    $routeCollection->setCurrentlyLoadingFilePath($fileAbsPath);
-
-                    Route::middleware($middlewareGroup)
-                        ->namespace($config['namespace'])
-                        ->domain($config['domain'])
-                        ->prefix($config['prefix'])
-                        ->name($config['name'])
-                        ->where($config['where'])
-                        ->group($routeFilePath);
-                }
-            }
-        }
-
-        unset($fileBelongsTo);
-        $routeCollection->setCurrentlyLoadingFilePathToNull();
     }
 
     /**

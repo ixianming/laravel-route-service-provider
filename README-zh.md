@@ -148,16 +148,25 @@ composer require ixianming/laravel-route-service-provider
 
 如果 Laravel 版本小于 5.5 或者不使用包自动发现：
 
-- 在 `config/app.php` 中的 `providers` 数组中注释 Laravel 的路由服务提供者 `App\Providers\RouteServiceProvider::class`。
+- 在 `config/app.php` 的 `providers` 数组中注释 Laravel 的路由服务提供者 `App\Providers\RouteServiceProvider::class`。
 
-- 将扩展包的服务提供者 `Ixianming\Routing\RouteServiceProvider::class` 添加到 `config/app.php` 中的 `providers` 数组中。
+- 将扩展包的服务提供者 `Ixianming\Routing\RouteServiceProvider::class` 添加到 `config/app.php` 的 `providers` 数组中、原路由服务提供者 `App\Providers\RouteServiceProvider::class` 的下方。
 
 ```php
 'providers' => [
-    // ...
+    /*
+     * Laravel Framework Service Providers...
+     */
     
+    /*
+     * Package Service Providers...
+     */
+    
+    /*
+     * Application Service Providers...
+     */
+     
     // App\Providers\RouteServiceProvider::class,
-    
     Ixianming\Routing\RouteServiceProvider::class,
     
  ]

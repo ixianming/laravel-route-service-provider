@@ -150,14 +150,23 @@ If the Laravel version is less than 5.5 or don't use package auto-discovery:
 
 - Comment Laravel's route service provider `App\Providers\RouteServiceProvider::class` in the `providers` array in `config/app.php`.
 
-- Add the extension's service provider `Ixianming\Routing\RouteServiceProvider::class` to the `providers` array in `config/app.php`.
+- Add the extension package's service provider `Ixianming\Routing\RouteServiceProvider::class` to the `providers` array in `config/app.php`, below the original routing service provider `App\Providers\RouteServiceProvider::class`.
 
 ```php
 'providers' => [
-    // ...
+    /*
+     * Laravel Framework Service Providers...
+     */
     
+    /*
+     * Package Service Providers...
+     */
+    
+    /*
+     * Application Service Providers...
+     */
+     
     // App\Providers\RouteServiceProvider::class,
-    
     Ixianming\Routing\RouteServiceProvider::class,
     
  ]
