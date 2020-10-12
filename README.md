@@ -12,7 +12,7 @@ Usually, the default configuration can meet most of the needs, so you don't need
 
 The extension package's `ServiceProvider` inherits Laravel's `App\Providers\RouteServiceProvider`. therefore, after installing the extension package, the explicit bindings, filters, custom parsing logic, etc. of the routing model defined in the boot() method in `App\Providers\RouteServiceProvider` are still available.
 
-However, it should be noted that the changes to `map()`, `mapApiRoutes()`, and `mapWebRoutes()` in `App\Providers\RouteServiceProvider` are invalid, because the extension overwrites the `map()` method and the `map()` method no longer references `mapApiRoutes()`, `mapWebRoutes()`.
+It should be noted that the changes to `map()`, `mapApiRoutes()`, and `mapWebRoutes()` in `App\Providers\RouteServiceProvider` are invalid, because the extension overwrites the `map()` method and the `map()` method no longer references `mapApiRoutes()`, `mapWebRoutes()`.
 
 ## Features
 
@@ -44,84 +44,6 @@ However, it should be noted that the changes to `map()`, `mapApiRoutes()`, and `
 
 - You can customize the route parameter regular expression constraint `where` used by each middleware group that is allowed to match routing files.
 
-## Impact on performance
-
-Installing and using any expansion package will inevitably bring additional performance overhead. Using this expansion package is also the case.
-
-**The additional performance overhead is reasonable and negligible.** However, if there are extreme requirements for the application performance, please test by yourself before use.
-
-When testing, be sure to confirm the following points:
-
-- Make sure the only variable is whether the extension package is installed or not.
-
-- **Make sure that the number of routing files and routes loaded by the app are the same before and after installing the extension package.**
-
-### Use route cache
-
-After installing the extension package, use the `php artisan route:cache` command to generate the route cache in any environment, comparison of using route cache after installation and using route cache before installation:
-
-- Increased memory consumption (The values are measured in PHP 7.3 environment and are for reference only.):
-
-    - Laravel 7:
-    
-        In theory, using the route cache only increases the memory consumption (about 55 KB) when loading the extension package service provider. However, in actual tests, the new memory consumption will increase with the number of routes. When the number of routes exceeds about 230, the new memory consumption will fluctuate significantly:
-
-        - When the number of routes is less than about 230, the memory consumption is increased by about (about 55 + (about 0.04 * number of routes)) KB compared to the time before installing the expansion package.
-
-        - When the number of routes is about 230-300, the memory consumption is increased by about (about 55 + (about 0.2 * number of routes)) KB compared to before the expansion package is installed.
-
-        - When the number of routes exceeds about 300, the memory consumption is increased by about (about 55 + (about 0.3 * number of routes)) KB compared to before the expansion package was installed.
-    
-    - Laravel 5.* / Laravel 6:
-    
-        - When the number of routes is less than about 300, the memory consumption is increased by about (about 100 + (about 0.6 * the number of routes)) KB compared to before the expansion package is installed.
-        
-        - When the number of routes exceeds about 300, the memory consumption will increase by about (about 100 + (about 0.9 * number of routes)) KB compared to that before the expansion package is installed.
-    
-    The test also found that without using this extension package, after using the route cache, the number of Laravel 7 routes exceeds about 230, and the number of Laravel 5.* / Laravel 6 routes exceeding about 300, memory consumption will also occur Significant fluctuations:
-
-    - When no extension package is installed, route cache is used, and the number of routes is less than about 230 (Laravel 7) / about 300 (Laravel 5.* / Laravel 6), the memory footprint of each route is about 4.5 KB.
-
-    - When no extension package is installed, route cache is used, and the number of routes exceeds about 230 (Laravel 7) / 300 (Laravel 5.* / Laravel 6), the memory footprint of each route is about 9 KB.
-
-    In my opinion, the reason for the above memory differences is related to the underlying implementation of PHP7 arrays (automatic expansion mechanism). For the specific underlying implementation of PHP7 arrays, please find the information yourself. If you have different opinions on this, welcome to exchange and learn together.
-
-    Overall, even if your application is a large application with nearly a thousand routes, the added memory consumption is only about 300 KB, which is almost negligible.
-
-- Increased I/O overhead:
-
-    - Laravel 7:
-    
-        - For a normal response, add an IO read (about 15 KB).
-        
-        - In the case of an exception, add two IO reads (about 20 KB in total).
-
-    - Laravel 5.* / Laravel 6:
-
-        - For a normal response, add two IO reads (about 30 KB in total).
-    
-        - In the case of an exception, add three IO reads (about 35 KB in total).
-        
-Other performance overhead is the same as before the extension package was installed.
-
-### No route cache
-
-Without route cache, the extra performance overhead is mainly the memory overhead of `RouteServiceProvider`, `RouteCollection` and `Route` instances, and the matching operation overhead of the route file and the middleware group.
-
-comparison of after installation and before installation:
-
-- Increases negligible CPU computation overhead.
-
-- Memory consumption has increased by about (about 110 + about 1.5 * number of routes)) KB compared to before the installation of the extension. (This value was measured in a PHP 7.3 environment and is for reference only.)
-
-- Increased I/O overhead:
-
-    - For a normal response, add two IO reads (about 30 KB in total).
-    
-    - In the case of an exception, add three IO reads (about 35 KB in total).
-
-Other performance overhead is the same as before the extension package was installed.
-
 ## Installation
 
 ### Installation conditions
@@ -130,7 +52,7 @@ Other performance overhead is the same as before the extension package was insta
 
 - Laravel >= 5.3
 
-    > Laravel 6 / Laravel 7 can also be installed and used!
+    > Laravel 6 / Laravel 7 / Laravel 8 can be installed and used!
 
 ### Installation
 
@@ -248,23 +170,25 @@ protected $defaultExceptionJsonResponse = true;
 
 ### Set whether to allow registration of closure-based route
 
-**By default, extension package are forbidden to register and use closure-based route.**
+**By default, extension package are allowed to register and use closure-based route.**
+
+**It is recommended to prohibit registration and use closure-based route.**
 
 > Why prohibit registration and use of closure-based route:
 > 
-> - When an application is published, Laravel is usually optimized, and route cache is one of the optimization items. But route cache does not apply to closure-based route. If you use closure-based route, you will get an error when generating the cache! To prevent route cache from being unavailable when the code is released, the best solution is to always disable closure routing.
+> - When an application is published, Laravel is usually optimized, and route cache is one of the optimization items. If the Laravel version is below 8.0, the route cache does not apply to closure-based route. If closure-based route is used in Laravel versions below 8.0, an error will be reported when generating the cache! To prevent route cache from being unavailable when the code is released, the best solution is to always disable closure routing.
 >
 > - During team development, this configuration can forcibly restrict the way developers can register routes and reduce the risk of mistakes.
 
-To allow registration and use of closure-based route, add the `$closureRoute` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+To prohibit registration and use of closure-based route, add the `$closureRoute` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `false`:
 
 ```php
-protected $closureRoute = true;
+protected $closureRoute = false;
 ```
 
 - The value of the `$closureRoute` attribute must be a **boolean value (`true` or `false`)**.
 
-- The `$closureRoute` attribute **default value is `false`**.
+- The `$closureRoute` attribute **default value is `true`**.
 
 - When the value type of the `$closureRoute` attribute is wrong, the default value will be used.
 
@@ -286,7 +210,7 @@ Why the name of named routes need to be unique:
 
 - If the name of the named route allows duplicates. Then the URL of the named route generated using the `route()` method may not be the URL you want.
 
-To allow duplicate names for named routes, add the `$uniqueRouteName` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `true`:
+To allow duplicate names for named routes, add the `$uniqueRouteName` attribute to `app/Providers/RouteServiceProvider.php` and set its value to `false`:
 
 ```php
 protected $uniqueRouteName = false;
@@ -294,7 +218,7 @@ protected $uniqueRouteName = false;
 
 - The value of the `$uniqueRouteName` attribute must be a **boolean value (`true` or `false`)**.
 
-- The value of the `$uniqueRouteName` attribute **default value is `false`**.
+- The value of the `$uniqueRouteName` attribute **default value is `true`**.
 
 - When the value type of the `$uniqueRouteName` attribute is wrong, the default value will be used.
 
@@ -346,7 +270,7 @@ After installing the extension package, the extension package will check for dup
 
 #### Default routing file matching rules
 
-After installing the extension package, the corresponding routing file is automatically matched for each middleware group that is allowed to match the routing file. These routing files can be placed anywhere in the `routes` directory.
+After installing the extension package, the corresponding routing file is automatically matched for each middleware group that is allowed to match the routing file. These routing files can be placed **anywhere in the `routes` directory**.
 
 **Default matching rules:**
 
@@ -358,9 +282,11 @@ After installing the extension package, the corresponding routing file is automa
 
 Route files names that meet the above rules will be assigned to the middleware group with corresponding names.
 
-**Note: Each route file in the `routes` directory can only be loaded once.**
-
 **Note: In the default rules, the path or file name is not case sensitive.**
+
+**Note: The same routing file in the `routes` directory is not allowed to be loaded by multiple middleware groups.**
+
+**Note: When the same route file in the `routes` directory is repeatedly loaded more than 3 times, the extension package will throw an exception. The developer should check whether the routing file is repeatedly quoted. If the routing matching rules are customized, you should also check the correctness of the matching rules.**
 
 For example:
 
@@ -384,11 +310,11 @@ routes
 
 - `api.php`, `welcome_api.PHP`, `api_User.php`, `Role/role_API.php` these routing files will be assigned to the `api` middleware group.
 
-- When loading the `web_errorTest_api.php` routing file, the extension package will throw an error because the file is assigned to both the `web` and `api` middleware groups (loaded 2 times). Developers should be aware of this when naming routing files with default rules.
+- When loading the `web_errorTest_api.php` routing file, the extension package will throw an error because the file is assigned to both the `web` and `api` middleware groups. Developers should be aware of this when naming routing files with default rules.
 
 #### The root namespace used by default
 
-The root namespace used by all middleware groups that are allowed to match routing files defaults to the value of the attribute `$namespace` in `App\Providers\RouteServiceProvider`. Normally, this value is `App\Http\Controllers`.
+The root namespace used by all middleware groups that are allowed to match routing files defaults to the value of the attribute `$namespace` in `App\Providers\RouteServiceProvider`.
 
 #### The subdomain used by default
 
@@ -469,7 +395,7 @@ The value of `{middlewareGroupName}` is also an array. The configurable keys are
 >
 > Before customizing the root namespace of the `web` middleware group, when using the `action()` method, you can call: `action('Welcome@index');` or `action('\App\Http\Controllers\Welcome@index');`.
 >
-> After customizing the root namespace, you need to call: `action('\Custom\App\Http\Controllers\Welcome@index');`.
+> After customizing the root namespace, you need to call: `action('\CustomNamespace\Welcome@index');`.
 
 If you need to customize the root namespace used by the middleware group, set the `namespace` key-value pair under the configuration array of the middleware group.
 
@@ -477,7 +403,7 @@ If you need to customize the root namespace used by the middleware group, set th
 
 - If the value type of the `namespace` is wrong, an exception will be thrown.
 
-Since the root namespace has a default value (`App\Http\Controllers`), if you do not need to customize the root namespace of the middleware group, please do not set this item's key-value pair under the configuration array of the middleware group, otherwise the default value will be overwritten.
+If you do not need to customize the root namespace of the middleware group, please do not set this item's key-value pair under the configuration array of the middleware group, otherwise the default value will be overwritten.
 
 #### Customize subdomains used by middleware group
 
@@ -517,7 +443,7 @@ To customize the routing parameter regular expression constraint used by the mid
 
 - If the value type of the `where` is wrong, an exception will be thrown.
 
-- How to properly set regular expression constraints for routing parameters, see [Laravel Doc - Routing - Regular Expression Constraints](https://laravel.com/docs/7.x/routing#parameters-regular-expression-constraints).
+- How to properly set regular expression constraints for routing parameters, see Laravel Documentation - Routing - Regular Expression Constraints.
 
 If you do not need to customize the routing parameter regular expression constraint of the middleware group, do not set the key-value pairs for this item under the configuration array of that middleware group, otherwise the default value will be overwritten.
 
@@ -543,7 +469,7 @@ If you do not need to customize the exception message response format of the mid
 
 If you need to customize the routing file matching rules used by the middleware group, please set the `matchRule` key-value pair under the configuration array of the middleware group.
 
-**Note: Each routing file is only allowed to be loaded once.**
+**Note: When the same route file in the `routes` directory is repeatedly loaded more than 3 times, the extension package will throw an exception. The developer should check whether the routing file is repeatedly quoted. If the routing matching rules are customized, you should also check the correctness of the matching rules.**
 
 - The value of `matchRule` is a **closure**.
 

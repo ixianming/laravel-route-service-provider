@@ -12,7 +12,7 @@
 
 扩展包的 `ServiceProvider` 继承了 Laravel 的 `App\Providers\RouteServiceProvider`。因此，安装扩展包后，依旧可以在 `App\Providers\RouteServiceProvider` 中的 `boot()` 方法中定义的路由模型的显式绑定、过滤器、自定义解析逻辑等。
 
-但需要注意的是，对 `App\Providers\RouteServiceProvider` 中 `map()`，`mapApiRoutes()`，`mapWebRoutes()` 这三个方法的修改是无效的，因为扩展包覆写了 `map()` 方法且 `map()` 方法中不再引用 `mapApiRoutes()`，`mapWebRoutes()` 这两个方法。
+需要注意的是，对 `App\Providers\RouteServiceProvider` 中 `map()`，`mapApiRoutes()`，`mapWebRoutes()` 这三个方法的修改是无效的，因为扩展包覆写了 `map()` 方法且 `map()` 方法中不再引用 `mapApiRoutes()`，`mapWebRoutes()` 这两个方法。
 
 ## 扩展包功能
 
@@ -44,84 +44,6 @@
 
 - 可以自定义各个允许匹配路由文件的中间件组所使用的路由参数正则表达式约束 `where`。
 
-## 对性能的影响
-
-安装并使用任何扩展包必然会带来额外的性能开销。安装使用本扩展包亦是。
-
-**总体而言，本扩展包带来的额外性能开销是合理的，且可以忽略不计**。但如对应用性能有极致要求，请自行进行测试、评估后再酌情使用。
-
-自行测试时，请务必确认以下要点：
-
-- 确保唯一的变量为：是否安装本扩展包。
-
-- **确保安装扩展包前后，应用加载的路由文件数量和路由数量相同。**
-
-### 使用路由缓存
-
-安装扩展包后，任何环境下使用 `php artisan route:cache` 命令生成路由缓存后，与安装扩展包前使用路由缓存时对比：
-
-- 增加内存消耗（以下数值在 PHP 7.3 环境下测得，仅作参考）：
-
-    - Laravel 7：
-    
-        理论上，使用路由缓存后，仅会增加加载扩展包服务提供者时的内存消耗（约 55 KB）。但在实际测试中，新增的内存消耗会随路由个数的增加而变大，路由个数超过约 230 个时，新增内存消耗会出现明显波动：
-        
-        - 路由个数在约 230 个以内时，内存消耗较安装扩展包前增加约（约 55 +（约 0.04 * 路由个数））KB。
-        
-        - 路由个数在约 230 - 300 个时，内存消耗较安装扩展包前增加约（约 55 +（约 0.2 * 路由个数））KB。
-        
-        - 路由个数超过约 300 个时，内存消耗较安装扩展包前增加约（约 55 +（约 0.3 * 路由个数））KB。
-    
-    - Laravel 5.* / Laravel 6：
-    
-        - 路由个数在约 300 个以内时，内存消耗较安装扩展包前增加约（约 100 +（约 0.6 * 路由个数））KB。
-      
-        - 路由个数超过约 300 个时，内存消耗较安装扩展包前增加约（约 100 +（约 0.9 * 路由个数））KB。
-    
-    测试还发现，在不安装本扩展包的情况下，使用路由缓存后，Laravel 7 路由个数超过约 230 个，Laravel 5.* / Laravel 6 路由个数超过约 300 个时，内存消耗也会出现明显波动：
-        
-    - 未安装扩展包、使用路由缓存、路由个数在约 230（Laravel 7）/ 300（Laravel 5.* / Laravel 6）个以内时，每个路由的内存占用约 4.5 KB。
-    
-    - 未安装扩展包、使用路由缓存、路由个数超过约 230（Laravel 7）/ 300（Laravel 5.* / Laravel 6）个时，每个路由的内存占用约 9 KB。
-    
-    在我看来，产生上述内存差异的原因和 PHP7 数组的底层实现有关（自动扩容机制）。PHP7 数组的具体底层实现请自行查找资料。如果你对此有不同的看法，欢迎交流，共同学习。
-    
-    总的来说，即使你的应用是有着近千路由的大型应用，新增的内存消耗也仅约 300 KB，这几乎是可以忽略的。
-    
-- 增加 I/O 开销：
-
-    - Laravel 7：
-    
-        - 正常响应的情况下，增加一次 IO 读取（约 15 KB）。
-        
-        - 抛出异常的情况下，增加两次 IO 读取（共约 20 KB）。
-
-    - Laravel 5.* / Laravel 6：
-
-        - 正常响应的情况下，增加两次 IO 读取（共约 30 KB）。
-    
-        - 抛出异常的情况下，增加三次 IO 读取（共约 35 KB）。
-        
-其他开销与安装扩展包前一致。
-
-### 不使用路由缓存
-
-不使用路由缓存的情况下，额外性能开销主要是 `RouteServiceProvider`、`RouteCollection` 及 `Route` 实例的内存开销，和路由文件与中间件组的匹配运算开销。
-
-安装扩展包后，与安装扩展包前对比：
-
-- 增加可忽略不计的 CPU 运算开销。
-
-- 内存消耗较安装扩展包前增加约（约 110 +（约 1.5 * 路由个数））KB。（该数值在 PHP 7.3 环境下测得，仅作参考）
-
-- 增加 I/O 开销：
-
-    - 正常响应的情况下，增加两次 IO 读取（共约 30 KB）。
-    
-    - 抛出异常的情况下，增加三次 IO 读取（共约 35 KB）。
-
-其他开销与安装扩展包前一致。
-
 ## 安装
 
 ### 安装条件
@@ -130,7 +52,7 @@
 
 - Laravel >= 5.3
 
-    > Laravel 6、Laravel 7 可以安装使用噢！
+    > Laravel 6、Laravel 7、Laravel 8 均可安装使用噢！
 
 ### 安装
 
@@ -150,7 +72,7 @@ composer require ixianming/laravel-route-service-provider
 
 - 在 `config/app.php` 的 `providers` 数组中注释 Laravel 的路由服务提供者 `App\Providers\RouteServiceProvider::class`。
 
-- 将扩展包的服务提供者 `Ixianming\Routing\RouteServiceProvider::class` 添加到 `config/app.php` 的 `providers` 数组中、原路由服务提供者 `App\Providers\RouteServiceProvider::class` 的下方。
+- 将扩展包的服务提供者 `Ixianming\Routing\RouteServiceProvider::class` 添加到 `config/app.php` 的 `providers` 数组中，原路由服务提供者 `App\Providers\RouteServiceProvider::class` 的下方。
 
 ```php
 'providers' => [
@@ -248,23 +170,25 @@ protected $defaultExceptionJsonResponse = true;
 
 ### 设置是否允许注册闭包路由
 
-**默认情况下，扩展包禁止注册、使用闭包路由。**
+**默认情况下，扩展包允许注册、使用闭包路由。**
+
+**建议禁止注册、使用闭包路由。**
 
 > 为什么要禁止注册、使用闭包路由：
 > 
-> - 应用上线时，通常会对 Laravel 进行优化，路由缓存是优化项之一。但路由缓存并不会作用在基于闭包的路由。如果使用了闭包路由，在生成缓存时，则会报错！为了避免代码推上线时无法使用路由缓存，最好的解决方案就是始终禁止使用闭包路由。
+> - 应用上线时，通常会对 Laravel 进行优化，路由缓存是优化项之一。Laravel 版本低于 8.0 时，路由缓存并不会作用在基于闭包的路由。如果在低于 8.0 的 Laravel 版本中使用了闭包路由，在生成缓存时，则会报错！为了避免代码推上线时无法使用路由缓存，最好的解决方案就是始终禁止使用闭包路由。
 >
 > - 在团队开发时，通过此配置可以强行约束各开发人员在注册路由时的方式，降低失误风险。
 
-如需允许注册使用闭包路由，在 `app/Providers/RouteServiceProvider.php` 中添加 `$closureRoute` 属性，并将其值设为 `true`：
+如需禁止注册使用闭包路由，在 `app/Providers/RouteServiceProvider.php` 中添加 `$closureRoute` 属性，并将其值设为 `false`：
 
 ```php
-protected $closureRoute = true;
+protected $closureRoute = false;
 ```
 
 - `$closureRoute` 属性的值需为**布尔值（`true` 或 `false`）**。
 
-- `$closureRoute` 属性的**默认值为 `false`**。
+- `$closureRoute` 属性的**默认值为 `true`**。
 
 - `$closureRoute` 属性的值设置错误时，将使用默认值。
 
@@ -302,7 +226,7 @@ protected $uniqueRouteName = false;
 
 - `$uniqueRouteName` 属性的值为 `false` 时，表示允许命名路由名称重复。
 
-禁止命名路由的名称重名后，若在全部路由中存在同名的命名路由，将抛出错误信息。扩展包还会指出重名的命名路由所在的路由文件地址及所在行，以及所属的中间件组，以方便快速定位问题。
+**禁止命名路由的名称重名后，若在全部路由中存在同名的命名路由，将抛出错误信息。扩展包还会指出重名的命名路由所在的路由文件地址及所在行，以及所属的中间件组，以方便快速定位问题。**
 
 ### 设置控制器能否重复使用
 
@@ -330,7 +254,7 @@ protected $allowReuseAction = false;
 
 - `$allowReuseAction` 属性的值为 `false` 时，表示禁止重复使用控制器。
 
-禁止控制器重复使用后，会在全部路由中检查是否重复使用了控制器，如果重复使用了，将抛出错误信息。扩展包还会指出重复使用控制器的路由所在的路由文件地址及所在行，以及所属的中间件组，以方便快速定位问题。
+**禁止控制器重复使用后，会在全部路由中检查是否重复使用了控制器，如果重复使用了，将抛出错误信息。扩展包还会指出重复使用控制器的路由所在的路由文件地址及所在行，以及所属的中间件组，以方便快速定位问题。**
 
 ### 检查重复定义的 URL
 
@@ -346,7 +270,7 @@ protected $allowReuseAction = false;
 
 #### 默认的路由文件匹配规则
 
-安装扩展包后，会自动为每个允许匹配路由文件的中间件组匹配对应的路由文件。这些路由文件可以放在 `routes` 目录下的任何一个地方。
+安装扩展包后，会自动为每个允许匹配路由文件的中间件组匹配对应的路由文件。这些路由文件可以放在 `routes` 目录下的**任何一个地方**。
 
 **默认匹配规则：**
 
@@ -358,9 +282,11 @@ protected $allowReuseAction = false;
 
 文件名符合以上规则的路由文件会被分配至对应名称的中间件组。
 
-**注意：`routes` 目录下的每个路由文件仅允许被加载一次。**
-
 **注意：在默认规则中，路径/文件名不区分大小写。**
+
+**注意：`routes` 目录下的同一路由文件不允许被多个中间件组加载。**
+
+**注意：当 `routes` 目录下的同一路由文件被重复加载超过 3 次时，扩展包将抛出异常提示。开发者应当检查路由文件是否被重复引用，如果自定义了路由匹配规则，还应检查匹配规则的正确性。**
 
 例如：
 
@@ -384,11 +310,11 @@ routes
 
 - `api.php`、`welcome_api.PHP`、`api_User.php`、`Role/role_API.php` 这几个路由文件会被分配至 `api` 中间件组。
 
-- 加载 `web_errorTest_api.php` 路由文件时，扩展包将抛出错误，因为该文件被同时分配至 `web` 和 `api` 两个中间件组（被加载了 2 次）。开发者在使用默认规则命名路由文件时应注意这一点。
+- **加载 `web_errorTest_api.php` 路由文件时，扩展包将抛出错误，因为该文件被同时分配至 `web` 和 `api` 两个中间件组。开发者在使用默认规则命名路由文件时应注意这一点。**
 
 #### 中间件组默认使用的根命名空间 namespace
 
-所有允许匹配路由文件的中间件组使用的根命名空间 `namespace` 默认为 `App\Providers\RouteServiceProvider` 中，属性 `$namespace` 的值。通常情况下，这个值为 `App\Http\Controllers`。
+所有允许匹配路由文件的中间件组使用的根命名空间 `namespace` 默认为 `App\Providers\RouteServiceProvider` 中，属性 `$namespace` 的值。
 
 #### 中间件组默认使用的子域名限制 domain
 
@@ -469,7 +395,7 @@ protected function customMiddlewareGroupsConfig()
 >
 > 自定义 `web` 中间件组的根命名空间前，使用 `action()` 方法时，可如此调用：`action('Welcome@index');` 或 `action('\App\Http\Controllers\Welcome@index');`。
 >
-> 自定义根命名空间后，需如此调用：`action('\Custom\App\Http\Controllers\Welcome@index');`。
+> 自定义根命名空间后，需如此调用：`action('\CustomNamespace\Welcome@index');`。
 
 如需自定义中间件组使用的根命名空间 `namespace`，请在该中间件组的配置数组下设置 `namespace` 键值对。
 
@@ -477,7 +403,7 @@ protected function customMiddlewareGroupsConfig()
 
 - `namespace` 的值类型错误时，将抛出异常。
 
-由于根命名空间有默认值（`App\Http\Controllers`），若无需自定义中间件组的根命名空间，请勿在该中间件组的配置数组下设置本项的键值对，否则默认值会被覆盖。
+若无需自定义中间件组的根命名空间，请勿在该中间件组的配置数组下设置本项的键值对，否则默认值会被覆盖。
 
 #### 自定义中间件组使用的子域名限制 domain
 
@@ -517,7 +443,7 @@ protected function customMiddlewareGroupsConfig()
 
 - `where` 的值类型错误时，将抛出异常。
 
-- 如何正确设置路由参数正则表达式约束，请参见 [Laravel 文档 - 路由 - 正则表达式约束](https://learnku.com/docs/laravel/7.x/routing/7458#parameters-regular-expression-constraints)。
+- 如何正确设置路由参数正则表达式约束，请自行参见《Laravel 文档 - 路由 - 正则表达式约束》章节。
 
 若无需自定义中间件组的路由参数正则表达式约束，请勿在该中间件组的配置数组下设置本项的键值对，否则默认值会被覆盖。
 
@@ -543,11 +469,11 @@ protected function customMiddlewareGroupsConfig()
 
 如需自定义中间件组与路由文件的匹配规则，请在该中间件组的配置数组下设置 `matchRule` 键值对。
 
-**注意：每个路由文件仅允许被加载一次。**
+**注意：当 `routes` 目录下的同一路由文件被重复加载超过 3 次时，扩展包将抛出异常提示。开发者应当检查路由文件是否被重复引用，如果自定义了路由匹配规则，还应检查匹配规则的正确性。**
 
 - `matchRule` 的值是一个**匿名函数**。
 
-- 匿名函数的传入参数是**一个路由文件的路径，这个路径是相对于 `routes` 目录的相对路径**，开发者需要自行编码**路由文件路径与该中间件组的匹配规则**。若满足匹配条件，则返回 `true`，否则返回 `false`。
+- 匿名函数的传入参数是**一个路由文件的路径，这个路径是相对于 `routes` 目录的相对路径**，开发者需要自行编码**路由文件路径与该中间件组的匹配规则**。若路由文件路径满足匹配条件，则返回 `true`，否则返回 `false`。
 
     **注意：传入匿名函数的路径是区分大小写的。**
 

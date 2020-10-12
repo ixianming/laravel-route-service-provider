@@ -8,11 +8,11 @@ use Illuminate\Routing\RouteCollection as OriginalRouteCollection;
 class RouteCollection extends OriginalRouteCollection
 {
     /**
-     * Whether or not closure routing is allowed. The default value is false.
+     * Whether or not closure routing is allowed. The default value is true.
      *
      * @var bool
      */
-    protected $closureRoute = false;
+    protected $closureRoute = true;
 
     /**
      * Whether the route name is unique. The default value is true.
@@ -36,36 +36,42 @@ class RouteCollection extends OriginalRouteCollection
     protected $currentlyLoadingFilePath = null;
 
     /**
-     * Set whether or not closure routing is allowed. The default value is false.
+     * Set whether or not closure routing is allowed.
      *
      * @param bool $closureRoute
      * @return void
      */
     public function setCanUseClosureRoute($closureRoute)
     {
-        $this->closureRoute = is_bool($closureRoute) ? $closureRoute : false;
+        if (is_bool($closureRoute)) {
+            $this->closureRoute = $closureRoute;
+        }
     }
 
     /**
-     * Set Whether the route name is unique. The default value is true.
+     * Set Whether the route name is unique.
      *
      * @param bool $uniqueRouteName
      * @return void
      */
     public function setRouteNameIsUnique($uniqueRouteName)
     {
-        $this->uniqueRouteName = is_bool($uniqueRouteName) ? $uniqueRouteName : true;
+        if (is_bool($uniqueRouteName)) {
+            $this->uniqueRouteName = $uniqueRouteName;
+        }
     }
 
     /**
-     * Set whether reuse action is allowed. The default value is true.
+     * Set whether reuse action is allowed.
      *
      * @param bool $allowReuseAction
      * @return void
      */
     public function setActionCanBeReused($allowReuseAction)
     {
-        $this->allowReuseAction = is_bool($allowReuseAction) ? $allowReuseAction : true;
+        if (is_bool($allowReuseAction)) {
+            $this->allowReuseAction = $allowReuseAction;
+        }
     }
 
     /**
@@ -114,6 +120,10 @@ class RouteCollection extends OriginalRouteCollection
             $route->idstr = Str::random();
         }
 
+        if (!isset($route->loadedTimes)) {
+            $route->loadedTimes = array();
+        }
+
         if (!isset($route->definedFile)) {
             $route->definedFile = $this->currentlyLoadingFilePath;
             $route->definedLine = 0;
@@ -149,14 +159,26 @@ class RouteCollection extends OriginalRouteCollection
         }
 
         foreach ($route->methods() as $method) {
+            if (!isset($route->loadedTimes[$method])) {
+                $route->loadedTimes[$method] = 1;
+            }
+
             if (!empty($this->routes[$method][$domainAndUri])) {// URL already exists.
                 $conflictRoute = $this->routes[$method][$domainAndUri]; // Get the route with the same URL.
 
                 // If it is the same route, overwrite is allowed, otherwise an error is thrown.
-                if ($route->idstr != $conflictRoute->idstr) {
+                if (($route->definedFile != $conflictRoute->definedFile || $route->definedLine != $conflictRoute->definedLine) && $route->idstr != $conflictRoute->idstr) {
                     $exceptionMsg = $this->buildConflictExceptionMsg($conflictRoute, $route, 'URL');
                     throw new \InvalidArgumentException('[ Method: ' . $method . ', URL: `' . trim($route->getDomain() ?? '', '/') . '/' . trim($route->uri() ?? '', '/') . '` is repeated. ] ' . $exceptionMsg);
                 }
+
+                if (isset($conflictRoute->loadedTimes[$method])) {
+                    $route->loadedTimes[$method] += $conflictRoute->loadedTimes[$method];
+                }
+            }
+
+            if ($route->loadedTimes[$method] >= 3) {
+                throw new \RuntimeException('[ Method: ' . $method . ', URL: `' . trim($route->getDomain() ?? '', '/') . '/' . trim($route->uri() ?? '', '/') . '` has been reloaded. ] The route defined in' . (empty($route->definedLine) ? '' : ' line ' . $route->definedLine . ' of') . ' the `' . $route->definedFile . '` has been reloaded no less than 3 times, please check your routing code. If you use custom routing file matching rules, please check your custom code. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
             }
 
             $this->routes[$method][$domainAndUri] = $route;
@@ -192,10 +214,11 @@ class RouteCollection extends OriginalRouteCollection
                     throw new \InvalidArgumentException('[ Named route: `' . $name . '` is repeated. ] ' . $exceptionMsg);
                 }
             } else {
-                $route->name($this->generateRouteName());
+                $name = $this->generateRouteName();
+                $route->name($name);
             }
 
-            $this->nameList[$route->getName()] = $route;
+            $this->nameList[$name] = $route;
         }
     }
 

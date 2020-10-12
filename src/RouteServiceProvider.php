@@ -20,6 +20,7 @@ class RouteServiceProvider extends ServiceProvider
      * Register service.
      *
      * @return void
+     * @throws \Exception
      */
     public function register()
     {
@@ -28,18 +29,18 @@ class RouteServiceProvider extends ServiceProvider
             $routeCollection = new RouteCollection();
 
             // Set whether or not closure routing is allowed. The default value is false.
-            if (isset($this->closureRoute)) {
-                $routeCollection->setCanUseClosureRoute(isset($this->closureRoute) && is_bool($this->closureRoute) ? $this->closureRoute : false);
+            if (isset($this->closureRoute) && is_bool($this->closureRoute)) {
+                $routeCollection->setCanUseClosureRoute($this->closureRoute);
             }
 
             // Set whether the route name is unique. The default value is true.
-            if (isset($this->uniqueRouteName)) {
-                $routeCollection->setRouteNameIsUnique(isset($this->uniqueRouteName) && is_bool($this->uniqueRouteName) ? $this->uniqueRouteName : true);
+            if (isset($this->uniqueRouteName) && is_bool($this->uniqueRouteName)) {
+                $routeCollection->setRouteNameIsUnique($this->uniqueRouteName);
             }
 
             // Set whether reuse action is allowed. The default value is true.
-            if (isset($this->allowReuseAction)) {
-                $routeCollection->setActionCanBeReused(isset($this->allowReuseAction) && is_bool($this->allowReuseAction) ? $this->allowReuseAction : true);
+            if (isset($this->allowReuseAction) && is_bool($this->allowReuseAction)) {
+                $routeCollection->setActionCanBeReused($this->allowReuseAction);
             }
 
             // Gets all routes that have been loaded.
@@ -57,13 +58,33 @@ class RouteServiceProvider extends ServiceProvider
             // zh-cn：由于某些扩展包（如：`laravel/ui`）会注册并使用路由的自定义宏，且要求在路由文件中添加方法来调用这些自定宏。如果本扩展包的服务提供者的 boot 顺序先于其他服务提供者，那么，本扩展包的服务提供者在 boot 阶段加载路由文件时，其他服务提供者的路由自定义宏可能尚未注册，在路由文件中调用自定宏就将抛出异常。因此，应当在所有服务提供者 boot 完成后再尽快加载路由文件。（事实上，Laravel 本身也是这样做的，路由加载服务几乎是最后启动的。Laravel 服务提供者的 boot 顺序为：框架的服务提供者 -> 扩展包服务提供者 -> APP的服务提供者（含路由加载服务））
             // en: Since some extension packages (e.g. `laravel/ui`) register and use custom macros of routing and add methods to call these custom macros in the routing file. If the `boot` order of the service provider of this expansion package comes before the other service providers, then when the service provider of this expansion package loads the routing file during the `boot` phase, the routing custom macro of the other service provider may not be registered yet and calling the custom macro in the routing file will throw an exception. Therefore, the routing file should be loaded as soon as possible after all service provider boot is complete. (In fact, Laravel itself does this, and the route loading service is almost last to boot. the Laravel service provider boot order is: service providers of the framework -> service providers of extension package -> service providers of the APP (with route loading service))
             $this->app->booted(function () {
+                $loadedProviders = $this->app->getLoadedProviders(); // Gets loaded service providers.
+
+                // If the Laravel's route service provider `App\Providers\RouteServiceProvider` has been loaded, the extension pack will no longer provide service.
+                if (isset($loadedProviders['App\Providers\RouteServiceProvider'])) {
+                    // If the Laravel's route service provider `App\Providers\RouteServiceProvider` has been loaded, the Laravel's route service provider will be automatically commented if the file `config/app.php` is writable. Throws an exception if the file `config/app.php` is unwritable and the runtime environment is not the console.
+                    $appConfigPath = config_path('app.php');
+                    $canWrite = is_writable($appConfigPath);
+                    if ($canWrite) {
+                        $originalContent = file_get_contents($appConfigPath);
+                        $newContent = strtr($originalContent, array('App\Providers\RouteServiceProvider' => '// App\Providers\RouteServiceProvider'));
+                        file_put_contents($appConfigPath, $newContent, LOCK_EX);
+                    }
+
+                    if (!$this->app->runningInConsole() && !$canWrite) {
+                        throw new \RuntimeException('Laravel\'s `App\Providers\RouteServiceProvider` has booted. Please comments `App\Providers\RouteServiceProvider::class` in the `providers` array of `config/app.php`.');
+                    }
+
+                    return;
+                }
+
                 // Gets all routing files.
                 $routeFilesPathArr = $this->loadRouteFiles(base_path('routes'));
 
                 // Gets the middleware groups that are allowed to match routing files and the configuration of these middleware groups.
                 $middlewareGroups = $this->middlewareGroupsConfig();
 
-                $routeCollection = $this->app['router']->getRoutes();
+                $routeCollection = $this->app['routes'];
 
                 $fileBelongsTo = array();
 
@@ -72,9 +93,17 @@ class RouteServiceProvider extends ServiceProvider
                         if ($this->isMatch($middlewareGroup, $routeFilePath, $config['matchRule'])) {
                             $fileAbsPath = explode(base_path(), $routeFilePath)[1] ?? $routeFilePath;
                             if (isset($fileBelongsTo[$fileAbsPath])) {
-                                throw new \RuntimeException('The `' . $middlewareGroup . '` middleware group is loading routing file `' . $fileAbsPath . '`, but the routing file has been loaded into the `' . $fileBelongsTo[$fileAbsPath] . '` middleware group. Please do not load it repeatedly.');
+                                if ($fileBelongsTo[$fileAbsPath]['middlewareGroup'] != $middlewareGroup) {
+                                    throw new \RuntimeException('The `' . $middlewareGroup . '` middleware group is loading routing file `' . $fileAbsPath . '`, but the routing file has been loaded into the `' . $fileBelongsTo[$fileAbsPath] . '` middleware group. Please do not load it repeatedly.');
+                                }
+
+                                if ($fileBelongsTo[$fileAbsPath]['loadedTimes'] >= 2) {
+                                    throw new \RuntimeException('The routing file `' . $fileAbsPath . '` has been repeatedly loaded by the middleware group `' . $middlewareGroup . '` no less than 3 times, please check your routing code. If you use custom routing file matching rules, please check your custom code. Please read the `README.MD` of `ixianming/laravel-route-service-provider` for more details and then modify your code.');
+                                }
                             }
-                            $fileBelongsTo[$fileAbsPath] = $middlewareGroup;
+
+                            $fileBelongsTo[$fileAbsPath]['middlewareGroup'] = $middlewareGroup;
+                            $fileBelongsTo[$fileAbsPath]['loadedTimes'] = isset($fileBelongsTo[$fileAbsPath]['loadedTimes']) ? ++$fileBelongsTo[$fileAbsPath]['loadedTimes'] : 1;
 
                             // Set the routing file path currently loading.
                             $routeCollection->setCurrentlyLoadingFilePath($fileAbsPath);
@@ -156,28 +185,10 @@ class RouteServiceProvider extends ServiceProvider
      * Define the routes for the application.
      *
      * @return void
-     * @throws \Exception
      */
     public function map()
     {
-        $loadedProviders = $this->app->getLoadedProviders(); // Gets loaded service providers.
 
-        if (isset($loadedProviders['App\Providers\RouteServiceProvider'])) {
-            // If the Laravel's route service provider `App\Providers\RouteServiceProvider` has been loaded, the Laravel's route service provider will be automatically commented if the file `config/app.php` is writable. Throws an exception if the file `config/app.php` is unwritable and the runtime environment is not the console.
-            $appConfigPath = config_path('app.php');
-            $canWrite = is_writable($appConfigPath);
-            if ($canWrite) {
-                $originalContent = file_get_contents($appConfigPath);
-                $newContent = strtr($originalContent, array('App\Providers\RouteServiceProvider' => '// App\Providers\RouteServiceProvider'));
-                file_put_contents($appConfigPath, $newContent, LOCK_EX);
-            }
-
-            if (!$this->app->runningInConsole() && !$canWrite) {
-                throw new \RuntimeException('Laravel\'s `App\Providers\RouteServiceProvider` has booted. Please comments `App\Providers\RouteServiceProvider::class` in the `providers` array of `config/app.php`.');
-            }
-
-            return;
-        }
     }
 
     /**
@@ -229,7 +240,7 @@ class RouteServiceProvider extends ServiceProvider
         foreach ($middlewareGroups as $middlewareGroup => $middlewares) {
             // If this middleware group is allowed to match routing files, set a default config for it.
             if (in_array($middlewareGroup, $allowMatchRouteMiddlewareGroups)) {
-                $defaultConfigs[$middlewareGroup]['namespace'] = $this->namespace ?? null;
+                $defaultConfigs[$middlewareGroup]['namespace'] = isset($this->namespace) ? $this->namespace : null;
                 $defaultConfigs[$middlewareGroup]['domain'] = null;
                 $defaultConfigs[$middlewareGroup]['prefix'] = $middlewareGroup === 'web' ? '' : $middlewareGroup;
                 $defaultConfigs[$middlewareGroup]['name'] = '';
