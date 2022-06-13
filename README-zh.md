@@ -52,7 +52,7 @@
 
 - Laravel >= 5.3
 
-    > Laravel 6、Laravel 7、Laravel 8 均可安装使用噢！
+    > Laravel 6、Laravel 7、Laravel 8、Laravel 9 均可安装使用噢！
 
 ### 安装
 
@@ -79,18 +79,18 @@ composer require ixianming/laravel-route-service-provider
     /*
      * Laravel Framework Service Providers...
      */
-    
+
     /*
      * Package Service Providers...
      */
-    
+
     /*
      * Application Service Providers...
      */
-     
+
     // App\Providers\RouteServiceProvider::class,
     Ixianming\Routing\RouteServiceProvider::class,
-    
+
  ]
 ```
 
@@ -110,7 +110,7 @@ if (method_exists(\Ixianming\Routing\ExceptionResponse::class, 'wantsJson')) {
 public function render($request, Exception $exception)
 {
     // Your code ...
-    
+
     // Your code must precede this function.
     if (method_exists(\Ixianming\Routing\ExceptionResponse::class, 'wantsJson')) {
         list($request, $exception) = \Ixianming\Routing\ExceptionResponse::wantsJson($request, $exception);
@@ -175,7 +175,7 @@ protected $defaultExceptionJsonResponse = true;
 **建议禁止注册、使用闭包路由。**
 
 > 为什么要禁止注册、使用闭包路由：
-> 
+>
 > - 应用上线时，通常会对 Laravel 进行优化，路由缓存是优化项之一。Laravel 版本低于 8.0 时，路由缓存并不会作用在基于闭包的路由。如果在低于 8.0 的 Laravel 版本中使用了闭包路由，在生成缓存时，则会报错！为了避免代码推上线时无法使用路由缓存，最好的解决方案就是始终禁止使用闭包路由。
 >
 > - 在团队开发时，通过此配置可以强行约束各开发人员在注册路由时的方式，降低失误风险。
@@ -390,7 +390,7 @@ protected function customMiddlewareGroupsConfig()
 **建议：无论自定义根命名空间与否，在使用 `action()`、`redirectToAction()`  等传入参数为控制器字符串的方法时，均传入以 `\` 开头的完整命名空间的控制器字符串。**
 
 > e.g.
-> 
+>
 > `Welcome@index` 控制器属于 `web` 中间件组，使用默认的根命名空间 `App\Http\Controllers`。
 >
 > 自定义 `web` 中间件组的根命名空间前，使用 `action()` 方法时，可如此调用：`action('Welcome@index');` 或 `action('\App\Http\Controllers\Welcome@index');`。

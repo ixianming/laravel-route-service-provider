@@ -52,7 +52,7 @@ It should be noted that the changes to `map()`, `mapApiRoutes()`, and `mapWebRou
 
 - Laravel >= 5.3
 
-    > Laravel 6 / Laravel 7 / Laravel 8 can be installed and used!
+    > Laravel 6 / Laravel 7 / Laravel 8 / Laravel 9 can be installed and used!
 
 ### Installation
 
@@ -79,18 +79,18 @@ If the Laravel version is less than 5.5 or don't use package auto-discovery:
     /*
      * Laravel Framework Service Providers...
      */
-    
+
     /*
      * Package Service Providers...
      */
-    
+
     /*
      * Application Service Providers...
      */
-     
+
     // App\Providers\RouteServiceProvider::class,
     Ixianming\Routing\RouteServiceProvider::class,
-    
+
  ]
 ```
 
@@ -110,7 +110,7 @@ After modification, the `render` method should look like this:
 public function render($request, Exception $exception)
 {
     // Your code ...
-    
+
     // Your code must precede this function.
     if (method_exists(\Ixianming\Routing\ExceptionResponse::class, 'wantsJson')) {
         list($request, $exception) = \Ixianming\Routing\ExceptionResponse::wantsJson($request, $exception);
@@ -175,7 +175,7 @@ protected $defaultExceptionJsonResponse = true;
 **It is recommended to prohibit registration and use closure-based route.**
 
 > Why prohibit registration and use of closure-based route:
-> 
+>
 > - When an application is published, Laravel is usually optimized, and route cache is one of the optimization items. If the Laravel version is below 8.0, the route cache does not apply to closure-based route. If closure-based route is used in Laravel versions below 8.0, an error will be reported when generating the cache! To prevent route cache from being unavailable when the code is released, the best solution is to always disable closure routing.
 >
 > - During team development, this configuration can forcibly restrict the way developers can register routes and reduce the risk of mistakes.
@@ -390,7 +390,7 @@ The value of `{middlewareGroupName}` is also an array. The configurable keys are
 **Recommendation: Regardless of whether the root namespace is customizable or not, the controller string with the full namespace starting with `\` should be passed when using methods with the controller string as an incoming parameter such as `action()`, `redirectToAction()`.**
 
 > e.g.
-> 
+>
 > The `Welcome@index` controller belongs to the `web` middleware group and uses the default root namespace `App\Http\Controllers`.
 >
 > Before customizing the root namespace of the `web` middleware group, when using the `action()` method, you can call: `action('Welcome@index');` or `action('\App\Http\Controllers\Welcome@index');`.
